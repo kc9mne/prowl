@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prowl</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">🐾 <b>Prowl</b> <span class="muted">network baseline</span></div>
+  <div class="controls">
+    <label>Subnet <input id="subnet" type="text" placeholder="auto-detect" size="18"></label>
+    <select id="mode" title="Scan mode">
+      <option value="discovery">Discovery (fast)</option>
+      <option value="deep">Deep (ports + ID)</option>
+    </select>
+    <button id="scanBtn" class="primary">Scan</button>
+    <button id="demoBtn" title="Fabricated data, touches no network">Demo</button>
+    <button id="cancelBtn" hidden>Cancel</button>
+  </div>
+</header>
+
+<div id="status" class="status"></div>
+<div id="progress" class="progress" hidden><div id="bar"></div></div>
+
+<main>
+  <section id="mapWrap">
+    <div class="tabs">
+      <button data-view="map" class="on">Map</button>
+      <button data-view="table">Table</button>
+      <span class="spacer"></span>
+      <a id="dlCsv" href="#" class="dl" hidden>CSV</a>
+      <a id="dlJson" href="#" class="dl" hidden>JSON</a>
+      <a id="dlHtml" href="#" class="dl" hidden>Report</a>
+    </div>
+    <div id="map" class="map"></div>
+    <div id="table" class="table" hidden></div>
+  </section>
+  <aside id="detail" class="detail">
+    <p class="muted">Run a scan, then click a device to see details and launch links.</p>
+  </aside>
+</main>
+
+<div id="authBanner" class="banner" hidden>
+  <b>Authorized use only.</b> Run Prowl only on networks you own or are engaged to assess.
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

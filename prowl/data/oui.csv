@@ -1,0 +1,235 @@
+# Prowl starter OUI table: OUI(6 hex),vendor
+# Subset of the public IEEE MA-L registry. Refresh offline with a full copy for better coverage.
+000393,Apple
+001451,Apple
+F0F61C,Apple
+A4C361,Apple
+3C0754,Apple
+001124,Apple
+B827EB,Raspberry Pi Foundation
+DCA632,Raspberry Pi (Trading)
+E45F01,Raspberry Pi (Trading)
+2CCF67,Raspberry Pi (Trading)
+D83ADD,Raspberry Pi (Trading)
+000C29,VMware
+005056,VMware
+000569,VMware
+0003FF,Microsoft (Hyper-V)
+00155D,Microsoft (Hyper-V)
+080027,PCS/Oracle VirtualBox
+525400,QEMU/KVM
+001B21,Intel
+001E67,Intel
+3C970E,Intel
+8C1645,Intel
+A0A8CD,Intel
+94C691,Intel
+B49691,Intel
+000C42,Routerboard/MikroTik
+4C5E0C,MikroTik
+6C3B6B,MikroTik
+E48D8C,MikroTik
+74 4D 28,MikroTik
+CC2DE0,MikroTik
+DC2C6E,MikroTik
+18FD74,Routerboard/MikroTik
+002590,Super Micro
+0018FE,Hewlett-Packard
+00215A,Hewlett-Packard
+3863BB,Hewlett Packard Enterprise
+9457A5,Hewlett Packard
+B499BA,Hewlett Packard
+001A4B,Hewlett-Packard
+001E0B,Hewlett-Packard
+A0481C,Hewlett Packard Enterprise
+002655,Dell
+14FEB5,Dell
+18A99B,Dell
+B8CA3A,Dell
+F8BC12,Dell
+D067E5,Dell
+00188B,Dell
+842B2B,Dell
+001018,Broadcom
+000E08,Cisco-Linksys
+00000C,Cisco
+000142,Cisco
+00D0BC,Cisco
+6400F1,Cisco
+F8C288,Cisco Meraki
+E0CB4E,Cisco Meraki
+0018BA,Cisco
+001B0C,Cisco
+04D590,Cisco
+0CD996,Cisco Meraki
+002722,Ubiquiti
+24A43C,Ubiquiti
+44D9E7,Ubiquiti
+68D79A,Ubiquiti
+788A20,Ubiquiti
+B4FBE4,Ubiquiti
+DC9FDB,Ubiquiti
+FCECDA,Ubiquiti
+E063DA,Ubiquiti
+74ACB9,Ubiquiti
+94 2A 6F,Ubiquiti
+F09FC2,Ubiquiti
+245A4C,Ubiquiti
+00156D,Ubiquiti
+502596,Netgear
+A040A0,Netgear
+20E52A,Netgear
+9CD36D,Netgear
+2CB05D,Netgear
+C03F0E,Netgear
+000FB5,Netgear
+C40415,Netgear
+EC1A59,Belkin/Linksys
+58EF68,Belkin International
+C05627,Belkin International
+001374,TP-LINK
+50C7BF,TP-LINK
+A42BB0,TP-LINK
+AC84C6,TP-LINK
+C46E1F,TP-LINK
+F4F26D,TP-LINK
+30DE4B,TP-LINK
+B0487A,TP-LINK
+1C61B4,TP-LINK
+D84732,TP-LINK
+002401,D-Link
+00179A,D-Link
+1CBDB9,D-Link
+340804,D-Link
+C8787D,D-Link
+B8A386,D-Link
+002129,Hon Hai/Foxconn
+44A56E,Netis/Realtek
+001346,Realtek
+525400,Realtek (PCI)
+000E2E,Edimax
+801F02,Edimax
+74DA38,Edimax
+0024B2,Netgear
+F81A67,TP-LINK
+1C3BF3,Samsung
+5001BB,Samsung
+8425DB,Samsung
+D0176A,Samsung
+E8508B,Samsung
+BCD11F,Samsung
+F0E77E,Samsung
+94350A,Samsung
+3C8375,Samsung
+002454,Amazon Technologies
+0C47C9,Amazon Technologies
+447446,Amazon Technologies
+68DBF5,Amazon Technologies
+F0D2F1,Amazon Technologies
+A0D0DC,Amazon Technologies
+FC65DE,Amazon Technologies
+4C17EB,Amazon Technologies
+D4F057,Google
+F4F5D8,Google
+F4F5E8,Google
+A4778E,Google
+3C286D,Google
+549683,Google Nest
+001788,Philips Hue/Signify
+00178D,Zigbee/Ember
+B0C554,Dahua Technology
+3CEF8C,Dahua Technology
+E0508B,Dahua Technology
+90026A,Dahua Technology
+001256,Axis Communications
+00408C,Axis Communications
+AACC78,Axis Communications
+B8A44F,Axis Communications
+001BB9,Hangzhou Hikvision
+4433E1,Hangzhou Hikvision
+C056E3,Hangzhou Hikvision
+ACB3B5,Hangzhou Hikvision
+BCAD28,Hangzhou Hikvision
+28575C,Hangzhou Hikvision
+001320,Instar/Mobotix
+000B82,Grandstream Networks
+C074AD,Grandstream Networks
+000FE2,Yealink
+805E0C,Yealink
+249AD8,Yealink
+001565,Polycom
+0004F2,Polycom
+00096E,Avaya
+00040D,Avaya
+000423,Avaya
+00802E,Canon
+F8B156,Canon
+1C9E46,Canon
+002673,Brother Industries
+30055C,Brother Industries
+008077,Brother Industries
+B422 00,Brother Industries
+0017C8,Kyocera
+001599,Kyocera
+08005A,IBM/Lenovo
+54EE75,Wistron/Lenovo
+3C9509,Zhejiang Dahua
+0000AA,Xerox
+0000F0,Samsung Electronics
+001E8F,Canon
+00000E,Fujitsu
+0000F4,Allied Telesis
+080069,Silicon Graphics
+000423,Avaya
+3CD92B,HP Inc. (printers)
+9C934E,Xerox
+001060,Lexmark
+002000,Lexmark
+0021B7,Lexmark
+0080A0,Hewlett Packard (JetDirect)
+001A1E,Aruba Networks
+6CF37F,Aruba (a HPE company)
+94B40F,Aruba (a HPE company)
+245A4C,Aruba
+0024D7,Intel (wifi)
+001675,Fortinet
+085B0E,Fortinet
+902B34,Fortinet/Giga-byte
+000D9D,Hewlett Packard
+0019E0,TP-LINK/NetCore
+F4EC38,TP-LINK
+D4CA6D,Routerboard/MikroTik
+00B0D0,Dell Computer
+5CF9DD,Dell
+001C23,Dell
+0CC47A,Super Micro
+AC1F6B,Super Micro
+002618,ASUSTek
+04D4C4,ASUSTek
+2C56DC,ASUSTek
+38D547,ASUSTek
+50465D,ASUSTek
+1CB72C,ASUSTek
+7824AF,ASUSTek
+D017C2,ASUSTek
+001731,ASUSTek
+7C10C9,ASUSTek
+000B6B,Wistron Neweb
+001C B3,Apple
+E4CE8F,Apple
+A860B6,Apple
+F0DBF8,Apple
+D0E140,Apple
+7CD1C3,Apple
+9803D8,Apple
+609AC1,Apple
+88665A,Apple
+AC87A3,Apple
+C82A14,Apple
+F437B7,Apple
+68967B,Apple
+B065BD,Apple
+040CCE,Apple
+7073CB,Apple
+E425E7,Apple
+B8E856,Apple

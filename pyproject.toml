@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prowl"
+version = "0.1.0"
+description = "Fast on-site network baseline & recon for authorized IT/security assessments."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "kc9mne" }]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+prowl = "prowl.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["prowl*"]
+
+[tool.setuptools.package-data]
+prowl = ["web/*", "data/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
