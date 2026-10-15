@@ -34,6 +34,14 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 button:disabled { opacity: .5; cursor: default; }
 
 .status { padding: .4rem 1rem; color: var(--muted); min-height: 1.4rem; }
+.diffbar { margin: 0 1rem .4rem; padding: .5rem .7rem; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; font-size: .88rem; }
+.diffbar .d-new { color: var(--ok); } .diffbar .d-gone { color: var(--bad); }
+.diffbar .d-chg { color: var(--warn); }
+.chip.d-new { background: var(--ok); color: #fff; }
+.chip.d-chg { background: var(--warn); color: #1b1f24; }
+.chip.d-gone { background: var(--bad); color: #fff; }
+.node.gone { opacity: .55; border-style: dashed; }
 .progress { height: 4px; background: var(--line); }
 #bar { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
 

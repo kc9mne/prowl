@@ -5,6 +5,7 @@ const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
 
 let JOB = null;        // latest job id
 let RESULT = null;     // latest result
+let DIFF = null;       // baseline diff for the latest result
 let POLL = null;
 let selected = null;   // selected host ip
 let view = "map";
@@ -35,6 +36,7 @@ async function startScan(demo) {
   const subnet = $("#subnet").value.trim();
   if (subnet && !demo) body.subnet = subnet;
   if (wantCreds) body.deep_opts = { check_default_creds: true };
+  DIFF = null; $("#diffBar").hidden = true;
   setBusy(true);
   try {
     const job = await api("/api/scan", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -57,7 +59,7 @@ function poll() {
     const pct = p.total ? Math.round((p.done / p.total) * 100) : (job.status === "running" ? 10 : 0);
     $("#progress").hidden = false; $("#bar").style.width = pct + "%";
     $("#status").textContent = `${cap(job.status)} — ${p.phase || ""} ${p.done || 0}/${p.total || 0} probed, ${p.found || 0} found`;
-    if (job.result) { RESULT = job.result; render(); }
+    if (job.result) { RESULT = job.result; if (job.diff) DIFF = job.diff; render(); renderDiffBar(); }
     if (!["queued", "running"].includes(job.status)) {
       clearInterval(POLL); setBusy(false);
       $("#progress").hidden = true;
@@ -87,19 +89,51 @@ function render() {
   view === "map" ? renderMap() : renderTable();
 }
 
+function renderDiffBar() {
+  const bar = $("#diffBar");
+  if (!DIFF) { bar.hidden = true; return; }
+  const when = new Date(DIFF.baseline_started * 1000).toLocaleString();
+  const gone = DIFF.gone.map((g) => `${esc(g.ip)} (${esc(g.label)})`).join(", ");
+  bar.innerHTML = `<b>Since baseline ${esc(when)}:</b>
+    <span class="d-new">+${DIFF.new.length} new</span> ·
+    <span class="d-gone">−${DIFF.gone.length} gone</span> ·
+    <span class="d-chg">~${DIFF.changed.length} changed</span> ·
+    <span class="muted">${DIFF.unchanged} unchanged</span>
+    ${gone ? `<div class="muted">Gone: ${gone}</div>` : ""}`;
+  bar.hidden = false;
+}
+
+function deltaChip(ip) {
+  if (!DIFF || !DIFF.delta) return "";
+  const d = DIFF.delta[ip];
+  if (d === "new") return `<span class="chip d-new" title="Not in the last baseline">NEW</span>`;
+  if (d === "changed") {
+    const c = DIFF.changed.find((x) => x.ip === ip);
+    return `<span class="chip d-chg" title="${c ? esc(c.changes.join("; ")) : "changed"}">Δ changed</span>`;
+  }
+  return "";
+}
+
 function renderMap() {
   $("#map").hidden = false; $("#table").hidden = true;
   const hosts = RESULT.hosts || [];
   const gw = hosts.filter((h) => h.is_gateway);
   const rest = hosts.filter((h) => !h.is_gateway);
-  $("#map").innerHTML = [...gw, ...rest].map(nodeHtml).join("") ||
-    `<p class="muted">No hosts found.</p>`;
-  for (const el of document.querySelectorAll(".node")) el.onclick = () => select(el.dataset.ip);
+  let html = [...gw, ...rest].map(nodeHtml).join("");
+  if (DIFF && DIFF.gone.length) {
+    html += DIFF.gone.map((g) => `<div class="node gone" title="Present in the baseline, not seen now">
+      <div class="ip">${esc(g.ip)}</div><div class="sub">${esc(g.label)}</div>
+      <div class="tags"><span class="chip d-gone">gone</span></div></div>`).join("");
+  }
+  $("#map").innerHTML = html || `<p class="muted">No hosts found.</p>`;
+  for (const el of document.querySelectorAll(".node[data-ip]")) el.onclick = () => select(el.dataset.ip);
   if (selected) markSelected();
 }
 
 function nodeHtml(h) {
   const tags = [];
+  const dc = deltaChip(h.ip);
+  if (dc) tags.push(dc);
   if (h.is_gateway) tags.push(`<span class="chip gw">gateway</span>`);
   if (h.device_class) tags.push(`<span class="chip">${esc(h.device_class)}</span>`);
   (h.services || []).slice(0, 6).forEach((s) =>

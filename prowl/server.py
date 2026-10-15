@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import launch as launch_mod
 from . import report
+from . import store as store_mod
 from .scan import ScanManager
 from .scan import net
 
@@ -35,11 +36,14 @@ def loopback_only(request: Request):
         raise HTTPException(403, "Prowl only accepts requests from the local machine.")
 
 
-def create_app() -> FastAPI:
+def create_app(db_path=None) -> FastAPI:
     app = FastAPI(title="Prowl")
     guard = [Depends(loopback_only)]
     audit: deque[dict] = deque(maxlen=1000)  # in-memory action log (never holds secrets)
     authz = {"ok": False}                    # per-session authorization for the default-cred check
+    store = store_mod.Store(db_path or store_mod.default_db_path())
+    saved_ids: set[str] = set()
+    diffs: dict[str, dict] = {}
 
     def record(action: str, detail: str):
         entry = {"time": time.time(), "action": action, "detail": detail}
@@ -47,6 +51,23 @@ def create_app() -> FastAPI:
         log.info("audit: %s — %s", action, detail)
 
     mgr = ScanManager(audit=record)
+
+    def finalize(job):
+        """On first sight of a finished real scan, persist it and diff vs the previous baseline."""
+        if job.demo or job.status != "done" or not job.result or job.id in saved_ids:
+            return diffs.get(job.id)
+        saved_ids.add(job.id)
+        cur = job.result.as_dict()
+        try:
+            prev = store.previous(cur["subnet"], cur["started"])
+            store.save(cur)
+            if prev:
+                diffs[job.id] = store_mod.diff(cur, prev)
+                record("baseline-diff", f"{cur['subnet']}: +{len(diffs[job.id]['new'])} "
+                       f"-{len(diffs[job.id]['gone'])} ~{len(diffs[job.id]['changed'])}")
+        except Exception:
+            log.exception("failed to persist/diff scan")
+        return diffs.get(job.id)
 
     def known_hosts() -> set[str]:
         ips: set[str] = set()
@@ -90,7 +111,11 @@ def create_app() -> FastAPI:
         job = mgr.get(job_id)
         if not job:
             raise HTTPException(404, "no such job")
-        return job.public()
+        d = job.public()
+        diff = finalize(job)
+        if diff:
+            d["diff"] = diff
+        return d
 
     @app.post("/api/scan/{job_id}/cancel", dependencies=guard)
     def scan_cancel(job_id: str):
@@ -103,7 +128,24 @@ def create_app() -> FastAPI:
     @app.get("/api/latest", dependencies=guard)
     def latest():
         job = mgr.latest()
-        return job.public() if job else JSONResponse(None)
+        if not job:
+            return JSONResponse(None)
+        d = job.public()
+        diff = finalize(job)
+        if diff:
+            d["diff"] = diff
+        return d
+
+    @app.get("/api/history", dependencies=guard)
+    def history(subnet: str | None = None, limit: int = 50):
+        return {"scans": store.list(subnet, min(limit, 500))}
+
+    @app.get("/api/history/{scan_id}", dependencies=guard)
+    def history_get(scan_id: int):
+        result = store.get(scan_id)
+        if not result:
+            raise HTTPException(404, "no such scan")
+        return result
 
     @app.get("/api/report.{fmt}", dependencies=guard)
     def get_report(fmt: str, job: str | None = None):

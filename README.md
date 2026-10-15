@@ -97,6 +97,7 @@ prowl/
     model.py       # Host / Service / ScanResult
     data/oui.csv      # bundled offline OUI subset
     data/defaults.yaml # public, vendor-documented factory default logins
+  store.py        # SQLite scan history + "since last baseline" diff
   web/             # static UI (no CDN): index.html, app.js, style.css, logo
 tests/
 ```
@@ -119,7 +120,11 @@ tests/
    audit-logs every attempt with the password masked. Checks HTTP Basic-auth, SSH (with the
    `[creds]` extra), and Telnet. Flags the device with the working login and a "likely
    unpatched too" note. Ships only public, vendor-documented defaults — no exploits.
-5. Persistence + **"new since last baseline"** diff for repeat site visits; report polish.
+5. ✅ **Persistence + baseline diff** — every real scan is saved to a local SQLite history;
+   the next scan of the same subnet is diffed against the previous one and the UI shows
+   **what's new, gone, or changed since last visit** (hosts keyed by MAC, so a DHCP lease
+   change reads as *changed*, not new+gone). `prowl scan` prints the same diff; `--data-dir`
+   sets where the history lives.
 6. More fingerprinting: SNMP sysDescr, SMB OS string, UPnP/SSDP, mDNS, favicon hashing;
    fuller OUI database loader.
 7. Extra recon: DHCP/DNS intel, passive mDNS/SSDP/NetBIOS, TLS inventory, printer/camera
