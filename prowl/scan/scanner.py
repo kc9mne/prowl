@@ -12,7 +12,9 @@ import random
 import time
 import uuid
 
-from . import classify, discovery, fingerprint, net, oui, ports
+import ipaddress as _ip
+
+from . import classify, creds, discovery, fingerprint, net, oui, ports
 from .model import Host, ScanResult, Service
 
 # Refuse to enumerate anything bigger than this without an explicit override — a /16 is
@@ -21,12 +23,13 @@ MAX_HOSTS_DEFAULT = 4096
 
 
 class ScanJob:
-    def __init__(self, mode: str, subnet: str, deep_opts: dict | None = None, demo: bool = False):
+    def __init__(self, mode: str, subnet: str, deep_opts: dict | None = None, demo: bool = False, audit=None):
         self.id = uuid.uuid4().hex[:12]
         self.mode = mode
         self.subnet = subnet
         self.deep_opts = deep_opts or {}
         self.demo = demo
+        self.audit = audit
         self.status = "queued"          # queued | running | done | cancelled | error
         self.error: str | None = None
         self.started = time.time()
@@ -110,10 +113,53 @@ class ScanJob:
 
         self.progress.update(done=0, total=total, found=0, phase="deep")
         await asyncio.gather(*(one(h) for h in hosts))
-        if self.deep_opts.get("check_default_creds"):
-            # TODO(creds): opt-in default-credential check with its authorization gate + guardrails.
-            result.notes.append("Default-credential check requested but not yet implemented (next slice).")
         result.notes.append(f"Deep scan fingerprinted {total} hosts across {len(port_set)} ports each.")
+
+        if self.deep_opts.get("check_default_creds") and not self._cancel.is_set():
+            await self._check_creds(result)
+
+    async def _check_creds(self, result: ScanResult):
+        """Opt-in, on-link-only default-credential check. Caller guarantees authorization."""
+        self.progress.update(phase="creds", done=0, total=0, found=0)
+        nets = [n["network"] for n in net.local_networks()]
+
+        def on_link(ip: str) -> bool:
+            try:
+                addr = _ip.ip_address(ip)
+            except ValueError:
+                return False
+            return any(addr in n for n in nets)
+
+        hosts = [h for h in result.hosts if not h.is_self and h.services and on_link(h.ip)]
+        skipped = [h for h in result.hosts if not h.is_self and h.services and not on_link(h.ip)]
+        if skipped:
+            result.notes.append(f"Default-cred check skipped {len(skipped)} off-link host(s) (on-link only).")
+        if not hosts:
+            result.notes.append("Default-cred check: no eligible on-link hosts with services.")
+            return
+
+        # Limited concurrency across hosts; the per-host checker is serial + delayed internally.
+        sem = asyncio.Semaphore(int(self.deep_opts.get("cred_host_concurrency", 4)))
+        total = len(hosts)
+        done = 0
+
+        async def one(host: Host):
+            nonlocal done
+            if self._cancel.is_set():
+                return
+            async with sem:
+                await creds.check_host(host, audit=self.audit, cancel=self._cancel)
+            done += 1
+            self.progress.update(done=done, total=total, found=done, phase="creds")
+
+        self.progress.update(done=0, total=total, found=0, phase="creds")
+        await asyncio.gather(*(one(h) for h in hosts))
+        hits = [h for h in hosts if h.default_creds]
+        if self.audit:
+            self.audit("cred-check-summary", f"{len(hits)}/{total} hosts accept a documented default")
+        result.notes.append(
+            f"Default-cred check: {len(hits)} of {total} on-link host(s) still accept a factory default "
+            f"login (such devices are also likely unpatched).")
 
     async def _run_demo(self):
         """Fabricate a plausible small network so the UI and report can be exercised offline."""
@@ -142,20 +188,39 @@ class ScanJob:
                 classify.classify(h)
             hosts.append(h)
             self.progress.update(done=i, total=total, found=len(hosts))
+        if self.mode == "deep" and self.deep_opts.get("check_default_creds"):
+            self._demo_cred_hits(hosts)
         result = ScanResult(mode=self.mode, subnet="192.168.1.0/24", gateway="192.168.1.1")
         result.hosts = hosts
         result.notes = ["DEMO scan — fabricated data, no network was touched."]
+        if self.deep_opts.get("check_default_creds"):
+            hits = sum(h.default_creds for h in hosts)
+            result.notes.append(f"Default-cred check (demo): {hits} host(s) accept a factory default "
+                                f"login (such devices are also likely unpatched).")
         result.finished = time.time()
         self.result = result
+
+
+    def _demo_cred_hits(self, hosts: list[Host]):
+        """Fabricate a couple of default-cred findings so the UI/report can be seen offline."""
+        rigged = {"192.168.1.77": ("http", 80, "admin", "12345"),   # the camera
+                  "192.168.1.50": ("http", 80, "admin", "admin")}    # the printer
+        for h in hosts:
+            h.cred_checked = bool(h.services)
+            if h.ip in rigged and h.services:
+                svc, port, user, pw = rigged[h.ip]
+                h.default_creds = True
+                h.default_cred_detail = {"service": svc, "port": port, "username": user, "password": pw}
 
 
 class ScanManager:
     """Holds the most recent jobs in memory (this is an on-site tool, not a service)."""
 
-    def __init__(self, max_jobs: int = 8):
+    def __init__(self, max_jobs: int = 8, audit=None):
         self.jobs: dict[str, ScanJob] = {}
         self._order: list[str] = []
         self.max_jobs = max_jobs
+        self.audit = audit
 
     def start(self, mode: str, subnet: str | None, deep_opts: dict | None = None, demo: bool = False) -> ScanJob:
         if mode not in ("discovery", "deep"):
@@ -165,7 +230,7 @@ class ScanManager:
             if not subnet:
                 raise ValueError("could not determine a local subnet; pass one explicitly")
             ipaddress.ip_network(subnet, strict=False)  # validate early
-        job = ScanJob(mode, subnet or "demo", deep_opts, demo=demo)
+        job = ScanJob(mode, subnet or "demo", deep_opts, demo=demo, audit=self.audit)
         self.jobs[job.id] = job
         self._order.append(job.id)
         self._evict()

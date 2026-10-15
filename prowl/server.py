@@ -37,14 +37,16 @@ def loopback_only(request: Request):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Prowl")
-    mgr = ScanManager()
     guard = [Depends(loopback_only)]
-    audit: deque[dict] = deque(maxlen=500)  # in-memory action log (never holds secrets)
+    audit: deque[dict] = deque(maxlen=1000)  # in-memory action log (never holds secrets)
+    authz = {"ok": False}                    # per-session authorization for the default-cred check
 
     def record(action: str, detail: str):
         entry = {"time": time.time(), "action": action, "detail": detail}
         audit.append(entry)
         log.info("audit: %s — %s", action, detail)
+
+    mgr = ScanManager(audit=record)
 
     def known_hosts() -> set[str]:
         ips: set[str] = set()
@@ -59,11 +61,26 @@ def create_app() -> FastAPI:
                 "default": (net.default_subnet() or {}).get("cidr"),
                 "gateway": net.default_gateway()}
 
+    @app.get("/api/authorize", dependencies=guard)
+    def authorize_status():
+        return {"authorized": authz["ok"]}
+
+    @app.post("/api/authorize", dependencies=guard)
+    def authorize(body: dict):
+        if not body.get("ack"):
+            raise HTTPException(400, "acknowledgement required")
+        authz["ok"] = True
+        record("authorize", "operator acknowledged authorization for default-credential checks")
+        return {"authorized": True}
+
     @app.post("/api/scan", dependencies=guard)
     async def start_scan(body: dict):
+        deep_opts = body.get("deep_opts") or {}
+        if deep_opts.get("check_default_creds") and not authz["ok"]:
+            raise HTTPException(403, "authorization_required")
         try:
             job = mgr.start(mode=body.get("mode", "discovery"), subnet=body.get("subnet"),
-                            deep_opts=body.get("deep_opts"), demo=bool(body.get("demo")))
+                            deep_opts=deep_opts, demo=bool(body.get("demo")))
         except ValueError as e:
             raise HTTPException(400, str(e))
         return job.public()

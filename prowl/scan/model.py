@@ -34,6 +34,8 @@ class Host:
     model: str | None = None           # make/model guess (deep)
     services: list[Service] = field(default_factory=list)
     default_creds: bool = False        # True => still accepts a documented default login (deep, opt-in)
+    cred_checked: bool = False         # whether the default-credential check actually ran on this host
+    default_cred_detail: dict | None = None  # {service, port, username, password} of the confirmed default
     confidence: str = "observed"       # "observed" (facts) vs "guess" (inference) — honest provenance
     rtt_ms: float | None = None
     sources: list[str] = field(default_factory=list)  # how we found it: arp, icmp, tcp, dhcp, mdns...

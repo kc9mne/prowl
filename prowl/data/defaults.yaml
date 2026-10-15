@@ -1,0 +1,54 @@
+# Prowl default-credential database — PUBLIC, vendor-documented factory defaults only.
+#
+# This is a data file for an AUTHORIZED check: "did anyone ever change the default login?"
+# It contains NO exploits. Each entry lists a username and up to a few documented default
+# passwords for it. At scan time Prowl tries at most TWO passwords per username to avoid
+# triggering account lockouts, and stops at the first confirmed default.
+#
+# An empty string ("") means a blank password. Keep lists short and well-known.
+
+# Always tried (a tiny, universal set), in addition to vendor/class matches.
+generic:
+  - { user: admin,     passwords: [admin, password] }
+  - { user: root,      passwords: [root, ""] }
+  - { user: admin,     passwords: ["", "1234"] }
+  - { user: user,      passwords: [user] }
+  - { user: guest,     passwords: [guest, ""] }
+
+# Keyed by OUI vendor (matched as a lowercase substring of the detected vendor string).
+vendors:
+  mikrotik:     [{ user: admin, passwords: ["", admin] }]
+  ubiquiti:     [{ user: ubnt,  passwords: [ubnt] }]
+  cisco:        [{ user: cisco, passwords: [cisco] }, { user: admin, passwords: [admin, cisco] }]
+  netgear:      [{ user: admin, passwords: [password, "1234"] }]
+  tp-link:      [{ user: admin, passwords: [admin] }]
+  d-link:       [{ user: admin, passwords: ["", admin] }]
+  zyxel:        [{ user: admin, passwords: ["1234", admin] }]
+  aruba:        [{ user: admin, passwords: [admin] }]
+  fortinet:     [{ user: admin, passwords: [""] }]
+  hikvision:    [{ user: admin, passwords: ["12345", admin12345] }]
+  dahua:        [{ user: admin, passwords: [admin] }]
+  axis:         [{ user: root,  passwords: [pass, root] }]
+  grandstream:  [{ user: admin, passwords: [admin] }]
+  yealink:      [{ user: admin, passwords: [admin] }]
+  polycom:      [{ user: Polycom, passwords: [456] }]
+  brother:      [{ user: admin, passwords: [access, initpass] }]
+  canon:        [{ user: admin, passwords: [canon, ""] }]
+  lexmark:      [{ user: admin, passwords: [admin] }]
+  kyocera:      [{ user: Admin, passwords: [Admin, admin00] }]
+  xerox:        [{ user: admin, passwords: ["1111", admin] }]
+  hewlett:      [{ user: admin, passwords: ["", admin] }]
+  synology:     [{ user: admin, passwords: ["", admin] }]
+  qnap:         [{ user: admin, passwords: [admin] }]
+  raspberry:    [{ user: pi,    passwords: [raspberry] }]
+  avaya:        [{ user: admin, passwords: [admin, password] }]
+
+# Keyed by the classifier's device_class (substring match).
+classes:
+  camera:       [{ user: admin, passwords: [admin, "12345"] }, { user: root, passwords: [root] }]
+  printer:      [{ user: admin, passwords: [admin, ""] }]
+  router:       [{ user: admin, passwords: [admin, password] }]
+  "network gear": [{ user: admin, passwords: [admin] }]
+  nas:          [{ user: admin, passwords: [admin, ""] }]
+  "voip-phone": [{ user: admin, passwords: [admin] }]
+  hypervisor:   [{ user: root,  passwords: [""] }]

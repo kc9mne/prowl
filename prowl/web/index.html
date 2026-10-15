@@ -17,6 +17,9 @@
       <option value="discovery">Discovery (fast)</option>
       <option value="deep">Deep (ports + ID)</option>
     </select>
+    <label id="credWrap" class="credwrap" hidden title="Check for unchanged factory default logins">
+      <input type="checkbox" id="credChk"> default-cred check
+    </label>
     <button id="scanBtn" class="primary">Scan</button>
     <button id="demoBtn" title="Fabricated data, touches no network">Demo</button>
     <button id="cancelBtn" hidden>Cancel</button>
@@ -62,6 +65,22 @@
   </div>
 </div>
 <div id="toast" class="toast" hidden></div>
+
+<div id="authModal" class="modal" hidden>
+  <div class="card">
+    <h3>Authorize default-credential check</h3>
+    <p>This tries up to two documented factory-default passwords per username on
+       <b>on-link devices only</b>, stops at the first confirmed default, and changes nothing.
+       It is a check for unchanged defaults — run it only where you are authorized to assess
+       the network.</p>
+    <label class="ack"><input type="checkbox" id="ackChk">
+      I am authorized to assess this network.</label>
+    <div class="row">
+      <button id="authCancel">Cancel</button>
+      <button id="authGo" class="primary" disabled>Authorize &amp; scan</button>
+    </div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>

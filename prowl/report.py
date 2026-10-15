@@ -18,13 +18,15 @@ def to_csv(result: ScanResult) -> str:
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["ip", "mac", "vendor", "hostname", "gateway", "device_class", "model",
-                "open_ports", "default_creds", "rtt_ms", "sources"])
+                "open_ports", "default_creds", "default_login", "rtt_ms", "sources"])
     for h in sorted(result.hosts, key=lambda h: h.ip_sort_key):
+        d = h.default_cred_detail or {}
+        login = f"{d['username']}:{d['password']}@{d['service']}:{d['port']}" if d else ""
         w.writerow([
             h.ip, h.mac or "", h.vendor or "", h.hostname or "",
             "yes" if h.is_gateway else "", h.device_class or "", h.model or "",
             " ".join(str(s.port) for s in h.services),
-            "YES" if h.default_creds else "", h.rtt_ms if h.rtt_ms is not None else "",
+            "YES" if h.default_creds else "", login, h.rtt_ms if h.rtt_ms is not None else "",
             " ".join(h.sources),
         ])
     return buf.getvalue()
@@ -36,7 +38,11 @@ def to_html(result: ScanResult) -> str:
     rows = []
     for h in d["hosts"]:
         ports = ", ".join(str(s["port"]) for s in h["services"]) or "—"
-        flag = ' <strong style="color:#c0392b">DEFAULT CREDS</strong>' if h["default_creds"] else ""
+        det = h.get("default_cred_detail") or {}
+        flag = ""
+        if h["default_creds"]:
+            cred = f" ({html.escape(det['username'])}:{html.escape(str(det['password']))})" if det else ""
+            flag = f' <strong style="color:#c0392b">DEFAULT CREDS{cred}</strong>'
         gw = " (gateway)" if h["is_gateway"] else ""
         rows.append(
             f"<tr><td>{html.escape(h['ip'])}{gw}</td>"

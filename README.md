@@ -50,11 +50,13 @@ and CSV/JSON/HTML report export.
 
 > **Build status:** Discovery mode, deep-mode port sweep + service fingerprinting + device
 > classification, the clickable map/table UI, OUI vendor lookup, the hardened service
-> launcher (SSH/RDP/VNC/Telnet/SMB/web), and report export are implemented. The
-> default-credential check is next — see [Roadmap](#roadmap). `--demo` shows the full UI today.
+> launcher (SSH/RDP/VNC/Telnet/SMB/web), the default-credential check, and report export are
+> implemented — the core tool is usable end to end. See [Roadmap](#roadmap) for what's next.
+> `--demo` shows the full UI (including flagged defaults) without touching a network.
 
-For TLS cert subject/SAN extraction during deep fingerprinting, install the extra:
-`pip install -e ".[tls]"` (adds `cryptography`). Without it, TLS still yields version/cipher.
+Optional extras: `pip install -e ".[tls]"` adds TLS cert subject/SAN extraction during
+fingerprinting; `pip install -e ".[creds]"` adds `paramiko` so the default-credential check
+can confirm SSH logins (HTTP Basic and Telnet checks work without it).
 
 ## Scope & safety
 
@@ -65,15 +67,15 @@ These are design rules, not just advice:
   `--allow-large`).
 - **Loopback-only server.** The UI binds to `127.0.0.1` and rejects non-loopback callers.
   It's a single-operator on-the-spot tool, not a shared service.
-- **Non-destructive.** Discovery and fingerprinting are read-only. The planned
-  default-credential check makes at most one attempt per documented factory-default pair per
-  service (no brute forcing, no spraying, no wordlists), confirms and stops, and never
-  changes a device — behind an explicit per-session authorization acknowledgement, off by
-  default, on-link-only.
+- **Non-destructive.** Discovery and fingerprinting are read-only. The default-credential
+  check tries at most two documented factory-default passwords per username (no brute
+  forcing, no spraying, no wordlists), confirms and stops, and never changes a device — behind
+  an explicit per-session authorization acknowledgement, off by default, on-link-only.
 - **Honest provenance.** The UI separates *observed facts* (open port, MAC, banner) from
   *guesses* (device class / model inference).
-- **Audit trail** (planned): scan start/stop, mode, target, and every credential attempt are
-  logged and exportable with the report.
+- **Audit trail.** Scan start, authorization, every launch, and every credential attempt
+  (with the password masked) are recorded in the in-memory audit log (`GET /api/audit`) and
+  the server log.
 
 ## Layout
 
@@ -89,10 +91,12 @@ prowl/
     ports.py       # async TCP connect scanner (probe set + curated deep set)
     fingerprint.py # deep-mode service ID: HTTP/TLS/SSH/RTSP banners (read-only)
     classify.py    # vendor + ports + banners -> device class + make/model guess
+    creds.py       # opt-in default-credential check (lockout-safe, non-destructive)
     oui.py         # offline MAC-prefix -> vendor
     scanner.py     # scan jobs: progress, cancel, demo mode
     model.py       # Host / Service / ScanResult
-    data/oui.csv   # bundled offline OUI subset
+    data/oui.csv      # bundled offline OUI subset
+    data/defaults.yaml # public, vendor-documented factory default logins
   web/             # static UI (no CDN): index.html, app.js, style.css, logo
 tests/
 ```
@@ -108,7 +112,13 @@ tests/
    Target must be a discovered host; usernames are strictly validated; argv is built as a
    list (never a shell string); passwords go via env (SSH `sshpass -e`) and are never on the
    command line, logged, or stored. Every launch is audit-logged.
-4. Default-credential check with its full guardrails and the authorization gate.
+4. ✅ **Default-credential check** — opt-in, behind a per-session authorization
+   acknowledgement, on-link devices only. Tries at most **two documented factory-default
+   passwords per username** (lockout-safe), stops at the first confirmed default, is
+   non-destructive (confirm login, change nothing), honours lockout/rate-limit signals, and
+   audit-logs every attempt with the password masked. Checks HTTP Basic-auth, SSH (with the
+   `[creds]` extra), and Telnet. Flags the device with the working login and a "likely
+   unpatched too" note. Ships only public, vendor-documented defaults — no exploits.
 5. Persistence + **"new since last baseline"** diff for repeat site visits; report polish.
 6. More fingerprinting: SNMP sysDescr, SMB OS string, UPnP/SSDP, mDNS, favicon hashing;
    fuller OUI database loader.

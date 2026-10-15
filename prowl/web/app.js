@@ -22,10 +22,19 @@ async function prefill() {
   } catch (e) { /* server may still be starting */ }
 }
 
+let authorized = false;
+
 async function startScan(demo) {
-  const body = { mode: $("#mode").value, demo: !!demo };
+  const mode = $("#mode").value;
+  const wantCreds = mode === "deep" && $("#credChk").checked;
+  if (wantCreds && !authorized) {
+    const ok = await getAuthorization();
+    if (!ok) return;               // operator declined
+  }
+  const body = { mode, demo: !!demo };
   const subnet = $("#subnet").value.trim();
   if (subnet && !demo) body.subnet = subnet;
+  if (wantCreds) body.deep_opts = { check_default_creds: true };
   setBusy(true);
   try {
     const job = await api("/api/scan", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -131,8 +140,15 @@ function select(ip) {
   ];
   const svcs = (h.services || []).map(svcRow).join("") ||
     `<p class="muted">No open ports recorded (run Deep mode for services).</p>`;
+  const d = h.default_cred_detail;
+  const credBlock = h.default_creds
+    ? `<div class="finding"><b>✕ Accepts a factory default login</b>
+         ${d ? `<div class="mono">${esc(d.username)} : ${esc(String(d.password) || "(blank)")}
+           <span class="muted">via ${esc(d.service)}/${esc(d.port)}</span></div>` : ""}
+         <div class="muted">Change this now. A device still on defaults is also likely unpatched.</div></div>`
+    : (h.cred_checked ? `<p class="prov">✓ No default login accepted (checked).</p>` : "");
   $("#detail").innerHTML = `<h3>${esc(h.hostname || h.ip)}</h3>
-    ${h.default_creds ? `<p style="color:var(--bad)"><b>✕ Accepts default credentials</b></p>` : ""}
+    ${credBlock}
     <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
     <h4>Services</h4>${svcs}
     <p class="prov">Facts (ports, MAC) are observed; class/model are best-guess.</p>`;
@@ -197,6 +213,31 @@ function askCreds(proto, ip, port) {
   });
 }
 
+function getAuthorization() {
+  return new Promise((resolve) => {
+    const m = $("#authModal"), ack = $("#ackChk"), go = $("#authGo");
+    ack.checked = false; go.disabled = true; m.hidden = false;
+    const onAck = () => { go.disabled = !ack.checked; };
+    const finish = (val) => { m.hidden = true; cleanup(); resolve(val); };
+    const onGo = async () => {
+      try {
+        await api("/api/authorize", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ack: true }) });
+        authorized = true; finish(true);
+      } catch (e) { toast("Authorization failed: " + e.message, true); finish(false); }
+    };
+    const onCancel = () => finish(false);
+    function cleanup() {
+      ack.removeEventListener("change", onAck);
+      go.removeEventListener("click", onGo);
+      $("#authCancel").removeEventListener("click", onCancel);
+    }
+    ack.addEventListener("change", onAck);
+    go.addEventListener("click", onGo);
+    $("#authCancel").addEventListener("click", onCancel);
+  });
+}
+
 let toastTimer = null;
 function toast(msg, sticky) {
   const t = $("#toast");
@@ -222,6 +263,9 @@ function markSelected() {
 }
 
 // wiring
+function syncCredToggle() { $("#credWrap").hidden = $("#mode").value !== "deep"; }
+$("#mode").addEventListener("change", syncCredToggle);
+syncCredToggle();
 $("#scanBtn").onclick = () => startScan(false);
 $("#demoBtn").onclick = () => startScan(true);
 $("#cancelBtn").onclick = async () => { if (JOB) await api("/api/scan/" + JOB + "/cancel", { method: "POST" }); };
