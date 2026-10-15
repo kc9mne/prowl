@@ -58,6 +58,7 @@ main { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; padding: 1rem
 .chip { background: var(--chip); color: var(--chip-ink); border-radius: 999px;
   padding: .05rem .5rem; font-size: .75rem; }
 .chip.gw { background: var(--gw); color: #fff; }
+.chip.warn { background: var(--warn); color: #1b1f24; }
 .chip.bad { background: var(--bad); color: #fff; }
 .redx { position: absolute; top: .4rem; right: .5rem; color: var(--bad); font-weight: 700; }
 

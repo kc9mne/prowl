@@ -94,7 +94,7 @@ function nodeHtml(h) {
   if (h.is_gateway) tags.push(`<span class="chip gw">gateway</span>`);
   if (h.device_class) tags.push(`<span class="chip">${esc(h.device_class)}</span>`);
   (h.services || []).slice(0, 6).forEach((s) =>
-    tags.push(`<span class="chip${s.secure ? "" : " bad"}">${esc(s.name || s.port)}</span>`));
+    tags.push(`<span class="chip${s.secure ? "" : " warn"}" title="${s.secure ? "" : "cleartext / legacy"}">${esc(s.name || s.port)}</span>`));
   return `<div class="node ${h.is_gateway ? "gw" : ""}" data-ip="${esc(h.ip)}">
     ${h.default_creds ? `<span class="redx" title="Default credentials">✕</span>` : ""}
     <div class="ip">${esc(h.ip)}</div>
