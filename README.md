@@ -48,10 +48,13 @@ and CSV/JSON/HTML report export.
   banner/service fingerprinting, device classification and make/model guess, and an
   **opt-in** default-credential check.
 
-> **Build status:** Discovery mode, the map/table UI, OUI vendor lookup, and report export
-> are implemented. Deep mode's port sweep, fingerprinting, classification, the hardened
-> service launcher, and the default-credential check are scaffolded and land in the next
-> slices — see [Roadmap](#roadmap). `--demo` shows the full intended UI today.
+> **Build status:** Discovery mode, deep-mode port sweep + service fingerprinting + device
+> classification, the map/table UI, OUI vendor lookup, and report export are implemented.
+> The hardened service launcher and the default-credential check are scaffolded and land in
+> the next slices — see [Roadmap](#roadmap). `--demo` shows the full intended UI today.
+
+For TLS cert subject/SAN extraction during deep fingerprinting, install the extra:
+`pip install -e ".[tls]"` (adds `cryptography`). Without it, TLS still yields version/cipher.
 
 ## Scope & safety
 
@@ -80,29 +83,33 @@ prowl/
   server.py       # loopback-only FastAPI UI + JSON API
   report.py       # JSON / CSV / HTML report
   scan/
-    net.py        # interfaces, subnet calc, ARP-cache read, gateway, reverse-DNS
-    discovery.py  # Mode-1 host discovery (unprivileged)
-    ports.py      # async TCP connect scanner (probe set + curated deep set)
-    oui.py        # offline MAC-prefix -> vendor
-    scanner.py    # scan jobs: progress, cancel, demo mode
-    model.py      # Host / Service / ScanResult
-    data/oui.csv  # bundled offline OUI subset
-  web/            # static UI (no CDN): index.html, app.js, style.css
+    net.py         # interfaces, subnet calc, ARP-cache read, gateway, reverse-DNS
+    discovery.py   # Mode-1 host discovery (unprivileged)
+    ports.py       # async TCP connect scanner (probe set + curated deep set)
+    fingerprint.py # deep-mode service ID: HTTP/TLS/SSH/RTSP banners (read-only)
+    classify.py    # vendor + ports + banners -> device class + make/model guess
+    oui.py         # offline MAC-prefix -> vendor
+    scanner.py     # scan jobs: progress, cancel, demo mode
+    model.py       # Host / Service / ScanResult
+    data/oui.csv   # bundled offline OUI subset
+  web/             # static UI (no CDN): index.html, app.js, style.css, logo
 tests/
 ```
 
 ## Roadmap
 
-1. ✅ **Mode 1 slice** — discovery, OUI, map/table UI, reports, demo mode. *(this build)*
-2. Deep mode: curated port sweep + banner/protocol fingerprinting (HTTP title/favicon,
-   SSH/TLS/SMB/SNMP/RTSP/IPP/UPnP/mDNS).
-3. Device classification + gateway make/model mapping.
-4. Hardened service launcher (loopback-only, gated): SSH/RDP/VNC/SMB/web with inline,
+1. ✅ **Mode 1 slice** — discovery, OUI, map/table UI, reports, demo mode.
+2. ✅ **Deep mode** — curated port sweep + banner/protocol fingerprinting (HTTP
+   Server/title/realm, TLS cert CN, SSH/FTP/SMTP banners, RTSP) + device classification
+   and make/model guess.
+3. Hardened service launcher (loopback-only, gated): SSH/RDP/VNC/SMB/web with inline,
    never-stored credentials.
-5. Default-credential check with its full guardrails and the authorization gate.
-6. Persistence + **"new since last baseline"** diff for repeat site visits; report polish.
-7. Extra recon: DHCP/DNS intel, passive mDNS/SSDP/NetBIOS, SNMP sysDescr, TLS inventory,
-   printer/camera exposure, SMB null-session, Wi-Fi survey.
+4. Default-credential check with its full guardrails and the authorization gate.
+5. Persistence + **"new since last baseline"** diff for repeat site visits; report polish.
+6. More fingerprinting: SNMP sysDescr, SMB OS string, UPnP/SSDP, mDNS, favicon hashing;
+   fuller OUI database loader.
+7. Extra recon: DHCP/DNS intel, passive mDNS/SSDP/NetBIOS, TLS inventory, printer/camera
+   exposure, SMB null-session, Wi-Fi survey.
 
 ## Develop
 

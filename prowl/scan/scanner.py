@@ -12,7 +12,7 @@ import random
 import time
 import uuid
 
-from . import discovery, net, oui
+from . import classify, discovery, fingerprint, net, oui, ports
 from .model import Host, ScanResult, Service
 
 # Refuse to enumerate anything bigger than this without an explicit override — a /16 is
@@ -81,12 +81,39 @@ class ScanJob:
         result.notes = disc["notes"]
 
         if self.mode == "deep" and not self._cancel.is_set():
-            self.progress["phase"] = "deep"
-            # TODO(deep): per-host port sweep -> fingerprint -> classify -> (opt-in) creds.
-            result.notes.append("Deep mode scaffold: port/fingerprint/classify/creds land in the next slice.")
+            await self._deep(result)
 
         result.finished = time.time()
         self.result = result
+
+    async def _deep(self, result: ScanResult):
+        """Per host: curated port sweep -> fingerprint each open port -> classify."""
+        self.progress["phase"] = "deep"
+        hosts = [h for h in result.hosts if not h.is_self]
+        port_set = self.deep_opts.get("ports") or ports.CURATED
+        timeout = float(self.deep_opts.get("timeout", 1.0))
+        host_conc = asyncio.Semaphore(int(self.deep_opts.get("host_concurrency", 24)))
+        total = len(hosts)
+        done = 0
+
+        async def one(host: Host):
+            nonlocal done
+            if self._cancel.is_set():
+                return
+            async with host_conc:
+                open_ports = await ports.scan_ports(host.ip, port_set, timeout=timeout)
+                svcs = await asyncio.gather(*(fingerprint.fingerprint(host.ip, p, timeout * 2) for p in open_ports))
+                host.services = sorted(svcs, key=lambda s: s.port)
+                classify.classify(host)
+            done += 1
+            self.progress.update(done=done, total=total, found=done, phase="deep")
+
+        self.progress.update(done=0, total=total, found=0, phase="deep")
+        await asyncio.gather(*(one(h) for h in hosts))
+        if self.deep_opts.get("check_default_creds"):
+            # TODO(creds): opt-in default-credential check with its authorization gate + guardrails.
+            result.notes.append("Default-credential check requested but not yet implemented (next slice).")
+        result.notes.append(f"Deep scan fingerprinted {total} hosts across {len(port_set)} ports each.")
 
     async def _run_demo(self):
         """Fabricate a plausible small network so the UI and report can be exercised offline."""
@@ -110,8 +137,9 @@ class ScanJob:
             h = Host(ip=ip, mac=mac, vendor=oui.lookup(mac), hostname=name, is_gateway=is_gw,
                      rtt_ms=round(random.uniform(0.4, 12.0), 1), sources=["arp", "tcp"])
             if self.mode == "deep":
-                h.services = [Service(port=p, name=_demo_svc(p), secure=p not in (23, 80, 515)) for p in open_ports]
-                h.device_class, h.model, h.confidence = _demo_class(h)
+                h.services = [Service(port=p, name=fingerprint.service_name(p)[0],
+                                      secure=fingerprint.service_name(p)[1]) for p in open_ports]
+                classify.classify(h)
             hosts.append(h)
             self.progress.update(done=i, total=total, found=len(hosts))
         result = ScanResult(mode=self.mode, subnet="192.168.1.0/24", gateway="192.168.1.1")
@@ -119,24 +147,6 @@ class ScanJob:
         result.notes = ["DEMO scan — fabricated data, no network was touched."]
         result.finished = time.time()
         self.result = result
-
-
-def _demo_svc(p: int) -> str:
-    return {22: "ssh", 23: "telnet", 53: "dns", 80: "http", 443: "https", 139: "netbios",
-            445: "smb", 515: "lpd", 554: "rtsp", 631: "ipp", 3389: "rdp", 9100: "jetdirect"}.get(p, "tcp")
-
-
-def _demo_class(h: Host):
-    ports_open = {s.port for s in h.services}
-    if h.is_gateway:
-        return "router/gateway", (h.vendor or "") + " gateway", "guess"
-    if {515, 631, 9100} & ports_open:
-        return "printer", (h.vendor or "") + " printer", "guess"
-    if 554 in ports_open:
-        return "camera/IoT", (h.vendor or "") + " camera", "guess"
-    if {139, 445} & ports_open:
-        return "server/NAS", "SMB host", "guess"
-    return "host", None, "guess"
 
 
 class ScanManager:

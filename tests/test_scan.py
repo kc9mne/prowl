@@ -1,7 +1,7 @@
 import asyncio
 import ipaddress
 
-from prowl.scan import net, oui
+from prowl.scan import classify, fingerprint, net, oui
 from prowl.scan.model import Host, ScanResult, Service
 from prowl.scan.scanner import ScanManager
 from prowl import report
@@ -62,6 +62,55 @@ def test_reports_render():
     assert "10.0.0.5" in report.to_csv(r)
     assert "10.0.0.5" in report.to_html(r)
     assert '"ip": "10.0.0.5"' in report.to_json(r)
+
+
+def test_service_name_security_flag():
+    assert fingerprint.service_name(22) == ("ssh", True)
+    assert fingerprint.service_name(23)[1] is False   # telnet = insecure
+    assert fingerprint.service_name(80)[1] is False   # http = cleartext
+    assert fingerprint.service_name(443) == ("https", True)
+    assert fingerprint.service_name(9999) == ("tcp", True)
+
+
+def test_classify_by_ports():
+    h = Host(ip="10.0.0.5", services=[Service(port=9100, name="jetdirect")])
+    classify.classify(h)
+    assert h.device_class == "printer"
+    assert h.confidence == "guess"
+
+    h2 = Host(ip="10.0.0.6", services=[Service(port=3389, name="rdp"), Service(port=445, name="smb")])
+    classify.classify(h2)
+    assert "windows" in h2.device_class
+
+    cam = Host(ip="10.0.0.7", vendor="Hangzhou Hikvision", services=[Service(port=554, name="rtsp")])
+    classify.classify(cam)
+    assert cam.device_class == "camera"
+
+
+def test_classify_by_banner_and_vendor():
+    h = Host(ip="10.0.0.8", vendor="Routerboard/MikroTik",
+             services=[Service(port=80, name="http", banner="RouterOS")])
+    classify.classify(h)
+    assert "router" in h.device_class.lower()
+    assert h.model and "RouterOS" in h.model
+
+    gw = Host(ip="10.0.0.1", is_gateway=True, vendor="Netgear",
+              services=[Service(port=80, name="http")])
+    classify.classify(gw)
+    assert "gateway" in gw.device_class or "router" in gw.device_class
+
+
+def test_deep_demo_classifies():
+    async def go():
+        job = ScanManager().start(mode="deep", subnet=None, demo=True)
+        while job.status in ("queued", "running"):
+            await asyncio.sleep(0.05)
+        return job
+    job = asyncio.run(go())
+    classes = {h.ip: h.device_class for h in job.result.hosts}
+    assert classes["192.168.1.50"] == "printer"       # Brother w/ 9100/631/515
+    assert classes["192.168.1.77"] == "camera"        # Hikvision w/ 554
+    assert "windows" in classes["192.168.1.150"]      # VMware host w/ 3389/445
 
 
 def test_large_subnet_refused():
