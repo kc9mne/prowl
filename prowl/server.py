@@ -6,15 +6,21 @@ auth model — if you can reach this port you are the operator on this machine.
 """
 from __future__ import annotations
 
+import logging
+import time
+from collections import deque
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import launch as launch_mod
 from . import report
 from .scan import ScanManager
 from .scan import net
+
+log = logging.getLogger("prowl.server")
 
 WEB = Path(__file__).resolve().parent / "web"
 
@@ -33,6 +39,19 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Prowl")
     mgr = ScanManager()
     guard = [Depends(loopback_only)]
+    audit: deque[dict] = deque(maxlen=500)  # in-memory action log (never holds secrets)
+
+    def record(action: str, detail: str):
+        entry = {"time": time.time(), "action": action, "detail": detail}
+        audit.append(entry)
+        log.info("audit: %s — %s", action, detail)
+
+    def known_hosts() -> set[str]:
+        ips: set[str] = set()
+        for job in mgr.jobs.values():
+            if job.result:
+                ips.update(h.ip for h in job.result.hosts)
+        return ips
 
     @app.get("/api/local")
     def local(_: None = Depends(loopback_only)):
@@ -82,6 +101,30 @@ def create_app() -> FastAPI:
         if fmt == "html":
             return HTMLResponse(report.to_html(j.result))
         raise HTTPException(400, "format must be json, csv, or html")
+
+    @app.post("/api/launch", dependencies=guard)
+    def launch(body: dict):
+        proto = (body.get("proto") or "").lower()
+        ip = body.get("ip") or ""
+        port = body.get("port") or launch_mod.DEFAULT_PORTS.get(proto)
+        username = (body.get("username") or "").strip() or None
+        password = body.get("password") or None  # used, never stored or logged
+        if ip not in known_hosts():
+            raise HTTPException(400, "target is not a host from a completed scan")
+        try:
+            plan = launch_mod.build(proto, ip, int(port), username, password)
+        except launch_mod.LaunchError as e:
+            raise HTTPException(400, str(e))
+        except (TypeError, ValueError):
+            raise HTTPException(400, "invalid launch request")
+        record("launch", f"{proto} {ip}:{port} user={username or '-'}")
+        result = launch_mod.execute(plan)  # result.command never contains the password
+        return {"ok": True, **result}
+
+    @app.get("/api/audit", dependencies=guard)
+    def get_audit(limit: int = 200):
+        items = list(audit)[-min(limit, 500):]
+        return {"events": list(reversed(items))}
 
     # Static UI last, so /api/* wins.
     app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

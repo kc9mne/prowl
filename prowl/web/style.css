@@ -79,3 +79,19 @@ main { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; padding: 1rem
 
 .banner { position: fixed; bottom: 0; left: 0; right: 0; text-align: center;
   background: var(--warn); color: #1b1f24; padding: .3rem; font-size: .85rem; }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex;
+  align-items: center; justify-content: center; z-index: 50; }
+.modal[hidden], .toast[hidden] { display: none; }
+.modal .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 1.1rem 1.2rem; width: min(380px, 92vw); box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+.modal h3 { margin: 0 0 .2rem; }
+.modal label { display: block; margin: .6rem 0 .2rem; color: var(--muted); font-size: .85rem; }
+.modal input { width: 100%; }
+.modal .row { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
+
+.toast { position: fixed; left: 50%; bottom: 2.2rem; transform: translateX(-50%);
+  max-width: min(680px, 92vw); background: var(--panel); color: var(--ink);
+  border: 1px solid var(--accent); border-radius: 9px; padding: .6rem .9rem; z-index: 60;
+  box-shadow: 0 8px 28px rgba(0,0,0,.35); font-size: .88rem; cursor: pointer;
+  word-break: break-word; }

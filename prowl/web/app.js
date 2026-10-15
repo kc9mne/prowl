@@ -153,13 +153,57 @@ function svcRow(s) {
   return `<div class="svc"><span>${label}</span>${action}</div>`;
 }
 
-function launch(proto, ip, port) {
-  // Mode-1 slice: real local-client launch (ssh/rdp/vnc) lands with the hardened launcher
-  // endpoint in the next build slice. For now, explain and offer the raw URI.
-  const uri = { ssh: `ssh://${ip}:${port}`, rdp: `rdp://${ip}`, vnc: `vnc://${ip}`,
-    telnet: `telnet://${ip}`, smb: `\\\\${ip}` }[proto] || `${proto}://${ip}:${port}`;
-  alert(`Launching ${proto} to ${ip}:${port}\n\nThe hardened local launcher arrives in the next build slice.\n` +
-    `For now use: ${uri}`);
+const NEEDS_CREDS = new Set(["ssh", "rdp", "vnc", "telnet"]);
+
+async function launch(proto, ip, port) {
+  let creds = { username: "", password: "" };
+  if (NEEDS_CREDS.has(proto)) {
+    creds = await askCreds(proto, ip, port);
+    if (creds === null) return;  // cancelled
+  }
+  try {
+    const r = await api("/api/launch", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proto, ip, port: Number(port), username: creds.username, password: creds.password }) });
+    if (r.launched) {
+      toast(`✓ ${r.how}${r.note ? " — " + r.note : ""}`);
+    } else {
+      toast(`${r.how}. ${r.command ? "Run: " + r.command : ""} ${r.note || ""}`, true);
+    }
+  } catch (e) {
+    toast("Launch failed: " + e.message, true);
+  }
+}
+
+function askCreds(proto, ip, port) {
+  return new Promise((resolve) => {
+    const m = $("#modal");
+    $("#mTitle").textContent = `${proto.toUpperCase()} to ${ip}:${port}`;
+    $("#mSub").textContent = "Leave blank to let the client prompt.";
+    $("#mUser").value = ""; $("#mPass").value = "";
+    m.hidden = false;
+    $("#mUser").focus();
+    const done = (val) => { m.hidden = true; cleanup(); resolve(val); };
+    const onGo = () => done({ username: $("#mUser").value.trim(), password: $("#mPass").value });
+    const onCancel = () => done(null);
+    const onKey = (e) => { if (e.key === "Escape") onCancel(); if (e.key === "Enter") onGo(); };
+    function cleanup() {
+      $("#mGo").removeEventListener("click", onGo);
+      $("#mCancel").removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKey);
+    }
+    $("#mGo").addEventListener("click", onGo);
+    $("#mCancel").addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKey);
+  });
+}
+
+let toastTimer = null;
+function toast(msg, sticky) {
+  const t = $("#toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  if (!sticky) toastTimer = setTimeout(() => { t.hidden = true; }, 4500);
+  else { t.onclick = () => { t.hidden = true; }; }
 }
 
 // fix web links to use the selected host ip at click time

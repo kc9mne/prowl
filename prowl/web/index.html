@@ -48,6 +48,21 @@
   <b>Authorized use only.</b> Run Prowl only on networks you own or are engaged to assess.
 </div>
 
+<div id="modal" class="modal" hidden>
+  <div class="card">
+    <h3 id="mTitle">Connect</h3>
+    <p id="mSub" class="muted"></p>
+    <label>Username <input id="mUser" type="text" autocomplete="off" spellcheck="false"></label>
+    <label>Password <input id="mPass" type="password" autocomplete="off"></label>
+    <p class="prov">Credentials are used for this one launch and never stored.</p>
+    <div class="row">
+      <button id="mCancel">Cancel</button>
+      <button id="mGo" class="primary">Launch</button>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
 <script src="app.js"></script>
 </body>
 </html>

@@ -49,9 +49,9 @@ and CSV/JSON/HTML report export.
   **opt-in** default-credential check.
 
 > **Build status:** Discovery mode, deep-mode port sweep + service fingerprinting + device
-> classification, the map/table UI, OUI vendor lookup, and report export are implemented.
-> The hardened service launcher and the default-credential check are scaffolded and land in
-> the next slices — see [Roadmap](#roadmap). `--demo` shows the full intended UI today.
+> classification, the clickable map/table UI, OUI vendor lookup, the hardened service
+> launcher (SSH/RDP/VNC/Telnet/SMB/web), and report export are implemented. The
+> default-credential check is next — see [Roadmap](#roadmap). `--demo` shows the full UI today.
 
 For TLS cert subject/SAN extraction during deep fingerprinting, install the extra:
 `pip install -e ".[tls]"` (adds `cryptography`). Without it, TLS still yields version/cipher.
@@ -80,7 +80,8 @@ These are design rules, not just advice:
 ```
 prowl/
   cli.py          # `prowl` entry point (server + one-shot scan)
-  server.py       # loopback-only FastAPI UI + JSON API
+  server.py       # loopback-only FastAPI UI + JSON API + audit log
+  launch.py       # hardened native-client launcher (ssh/rdp/vnc/telnet/smb/web)
   report.py       # JSON / CSV / HTML report
   scan/
     net.py         # interfaces, subnet calc, ARP-cache read, gateway, reverse-DNS
@@ -102,8 +103,11 @@ tests/
 2. ✅ **Deep mode** — curated port sweep + banner/protocol fingerprinting (HTTP
    Server/title/realm, TLS cert CN, SSH/FTP/SMTP banners, RTSP) + device classification
    and make/model guess.
-3. Hardened service launcher (loopback-only, gated): SSH/RDP/VNC/SMB/web with inline,
-   never-stored credentials.
+3. ✅ **Hardened service launcher** — loopback-only, gated endpoint that opens a native
+   client (SSH/RDP/VNC/Telnet in a terminal, SMB in the file manager, web in a browser).
+   Target must be a discovered host; usernames are strictly validated; argv is built as a
+   list (never a shell string); passwords go via env (SSH `sshpass -e`) and are never on the
+   command line, logged, or stored. Every launch is audit-logged.
 4. Default-credential check with its full guardrails and the authorization gate.
 5. Persistence + **"new since last baseline"** diff for repeat site visits; report polish.
 6. More fingerprinting: SNMP sysDescr, SMB OS string, UPnP/SSDP, mDNS, favicon hashing;
