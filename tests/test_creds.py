@@ -150,3 +150,16 @@ def test_import_rejects_empty():
     import pytest
     with pytest.raises(ValueError):
         creds.import_from_text("just,some\nrandom,text\n")
+
+
+def test_parse_defaultcredentials_org_format():
+    # the real defaultcredentials.org/api/export?format=csv layout
+    text = ("vendor,product,category,default_ip,username,password,access,source\n"
+            "Dahua,IP Camera,ip-camera,192.168.1.108,admin,admin,web-ui,vendor manual\n"
+            "Fortinet,FortiGate,firewall,192.168.1.99,admin,(none),web-ui,vendor manual\n"
+            "Fortinet,FortiGate,firewall,192.168.1.99,(none),bcpb(serial number),serial,vendor manual\n")
+    rows = creds.parse_cred_export(text)
+    assert ("Dahua", "admin", "admin") in rows
+    assert ("Fortinet", "admin", "") in rows          # "(none)" password -> blank
+    assert not any(u == "(none)" for _, u, _ in rows)  # "(none)" username dropped
+    assert not any("serial number" in p for _, _, p in rows)  # instruction placeholder dropped

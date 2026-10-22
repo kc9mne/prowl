@@ -351,14 +351,25 @@ def parse_cred_export(text: str) -> list[tuple[str, str, str]]:
             continue
         user = user.strip()
         pw = (pw or "").strip()
-        if user.lower() in ("", "n/a", "none", "<blank>"):
+        _BLANK = ("", "n/a", "none", "(none)", "<blank>", "<none>", "blank")
+        if user.lower() in _BLANK:
             user = ""
-        if pw.lower() in ("n/a", "none", "<blank>", "(none)"):
+        if pw.lower() in _BLANK:
             pw = ""
         if not vendor or not user:
             continue
+        if _is_placeholder(pw):     # e.g. "bcpb(serial number of the firewall)" — an instruction
+            continue
         out.append((vendor, user, pw))
     return out
+
+
+# A "password" that is really an instruction, not a literal secret.
+_PLACEHOLDER = re.compile(r"\((?:add|serial|mac|the |last|first|see |your |device|refer)", re.I)
+
+
+def _is_placeholder(pw: str) -> bool:
+    return bool(_PLACEHOLDER.search(pw))
 
 
 def import_from_text(text: str) -> dict:
