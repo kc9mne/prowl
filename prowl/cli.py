@@ -38,10 +38,26 @@ def main(argv=None):
     s.add_argument("--csv", metavar="FILE", help="write a CSV report")
     s.add_argument("--html", metavar="FILE", help="write an HTML report")
 
+    u = sub.add_parser("update-oui", help="ingest a local IEEE OUI file (oui.csv or oui.txt)")
+    u.add_argument("path", help="path to the IEEE oui.csv or oui.txt file")
+
     args = ap.parse_args(argv)
     if args.cmd == "scan":
         return _scan_cli(args)
+    if args.cmd == "update-oui":
+        return _update_oui(args)
     return _serve(args)
+
+
+def _update_oui(args) -> int:
+    from .scan import oui
+    try:
+        n = oui.update_from_ieee(args.path)
+    except (OSError, ValueError) as e:
+        print(f"update-oui failed: {e}", file=sys.stderr)
+        return 1
+    print(f"loaded {n} OUI prefixes into {oui.user_db_path()}", file=sys.stderr)
+    return 0
 
 
 def _scan_cli(args) -> int:

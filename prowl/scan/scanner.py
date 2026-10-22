@@ -14,7 +14,7 @@ import uuid
 
 import ipaddress as _ip
 
-from . import classify, creds, discovery, fingerprint, net, oui, ports
+from . import classify, creds, discovery, fingerprint, net, oui, ports, smb, snmp, ssdp
 from .model import Host, ScanResult, Service
 
 # Refuse to enumerate anything bigger than this without an explicit override — a /16 is
@@ -99,6 +99,15 @@ class ScanJob:
         total = len(hosts)
         done = 0
 
+        # One network-wide SSDP/UPnP sweep (not per host), unless disabled.
+        upnp: dict[str, dict] = {}
+        if self.deep_opts.get("ssdp", True):
+            try:
+                upnp = await ssdp.discover(timeout=2.0)
+            except OSError:
+                upnp = {}
+        do_snmp = self.deep_opts.get("snmp", True)
+
         async def one(host: Host):
             nonlocal done
             if self._cancel.is_set():
@@ -107,13 +116,50 @@ class ScanJob:
                 open_ports = await ports.scan_ports(host.ip, port_set, timeout=timeout)
                 svcs = await asyncio.gather(*(fingerprint.fingerprint(host.ip, p, timeout * 2) for p in open_ports))
                 host.services = sorted(svcs, key=lambda s: s.port)
+                await self._extra_fingerprint(host, set(open_ports), upnp.get(host.ip), do_snmp, timeout)
                 classify.classify(host)
             done += 1
             self.progress.update(done=done, total=total, found=done, phase="deep")
 
         self.progress.update(done=0, total=total, found=0, phase="deep")
         await asyncio.gather(*(one(h) for h in hosts))
-        result.notes.append(f"Deep scan fingerprinted {total} hosts across {len(port_set)} ports each.")
+        extras = [note for note in (
+            f"UPnP: {len(upnp)} responder(s)." if upnp else "",
+        ) if note]
+        result.notes.append(f"Deep scan fingerprinted {total} hosts across {len(port_set)} ports each. "
+                            + " ".join(extras))
+
+    async def _extra_fingerprint(self, host: Host, open_ports: set, upnp: dict | None,
+                                 do_snmp: bool, timeout: float):
+        """SNMP sysDescr, SMB/NTLM name+OS, and UPnP SERVER — all read-only, best-effort."""
+        if do_snmp:
+            try:
+                snmp_res = await snmp.probe(host.ip, timeout=1.0)
+            except OSError:
+                snmp_res = None
+            if snmp_res and snmp_res.get("sysDescr"):
+                host.services.append(Service(port=161, proto="udp", name="snmp",
+                                             banner=snmp_res["sysDescr"][:160], secure=False))
+                if not host.hostname and snmp_res.get("sysName"):
+                    host.hostname = snmp_res["sysName"]
+        if 445 in open_ports:
+            try:
+                info = await smb.probe(host.ip, timeout=timeout * 2)
+            except OSError:
+                info = None
+            if info:
+                name = info.get("dns_computer") or info.get("nb_computer")
+                if name and not host.hostname:
+                    host.hostname = name
+                parts = [p for p in (name, info.get("nb_domain")) if p]
+                banner = "SMB " + " / ".join(parts) + (f"  OS {info['os']}" if info.get("os") else "")
+                smbsvc = next((s for s in host.services if s.port == 445), None)
+                if smbsvc:
+                    smbsvc.banner = banner.strip()
+        if upnp and upnp.get("server"):
+            bits = [upnp["server"]] + ([upnp["st"]] if upnp.get("st") else [])
+            host.services.append(Service(port=1900, proto="udp", name="upnp",
+                                         banner=" | ".join(bits)[:160], secure=False))
 
         if self.deep_opts.get("check_default_creds") and not self._cancel.is_set():
             await self._check_creds(result)
@@ -185,6 +231,7 @@ class ScanJob:
             if self.mode == "deep":
                 h.services = [Service(port=p, name=fingerprint.service_name(p)[0],
                                       secure=fingerprint.service_name(p)[1]) for p in open_ports]
+                self._demo_banners(h)
                 classify.classify(h)
             hosts.append(h)
             self.progress.update(done=i, total=total, found=len(hosts))
@@ -200,6 +247,20 @@ class ScanJob:
         result.finished = time.time()
         self.result = result
 
+
+    def _demo_banners(self, h: Host):
+        """Fabricated SNMP/SMB/HTTP banners so the demo shows slice-6 fingerprinting."""
+        if h.is_gateway:
+            h.services.append(Service(port=161, proto="udp", name="snmp", secure=False,
+                                      banner="RouterOS RB750Gr3, MikroTik 7.11"))
+        byport = {s.port: s for s in h.services}
+        if h.ip == "192.168.1.50" and 80 in byport:   # printer
+            byport[80].banner = "HP HTTP Server | Brother HL-L2370DW"
+        if h.ip == "192.168.1.77" and 80 in byport:   # camera
+            byport[80].banner = "App-webs/ | Hikvision DS-2CD2042"
+        if h.ip == "192.168.1.150" and 445 in byport:  # windows host
+            byport[445].banner = "SMB FILESERVER / WORKGROUP  OS 10.0 build 19045"
+            byport[445].name = "smb"
 
     def _demo_cred_hits(self, hosts: list[Host]):
         """Fabricate a couple of default-cred findings so the UI/report can be seen offline."""

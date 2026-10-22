@@ -190,17 +190,21 @@ function select(ip) {
     b.onclick = () => launch(b.dataset.proto, h.ip, b.dataset.port);
 }
 
+const LAUNCHABLE = new Set(["ssh", "rdp", "vnc", "telnet", "smb"]);
+
 function svcRow(s) {
-  const label = `${esc(s.name || "tcp")}/${s.port}${s.secure ? "" : " ⚠"}`;
-  const web = s.name === "http" || s.name === "https" || [80, 443, 8080, 8443, 8000, 8888].includes(s.port);
-  let action;
+  const proto = (s.name || "").toLowerCase();
+  const label = `${esc(s.name || "tcp")}/${s.port}${s.proto === "udp" ? " (udp)" : ""}${s.secure ? "" : " ⚠"}`;
+  const web = proto === "http" || proto === "https" || [80, 443, 8080, 8443, 8000, 8888].includes(s.port);
+  let action = "";
   if (web) {
-    const scheme = (s.name === "https" || [443, 8443].includes(s.port)) ? "https" : "http";
+    const scheme = (proto === "https" || [443, 8443].includes(s.port)) ? "https" : "http";
     action = `<a href="${scheme}://PLACEHOLDER" data-web="${scheme}" data-port="${s.port}" target="_blank" rel="noopener">open ↗</a>`;
-  } else {
-    action = `<button data-launch data-proto="${esc(s.name || "tcp")}" data-port="${s.port}">launch</button>`;
+  } else if (LAUNCHABLE.has(proto)) {
+    action = `<button data-launch data-proto="${esc(proto)}" data-port="${s.port}">launch</button>`;
   }
-  return `<div class="svc"><span>${label}</span>${action}</div>`;
+  const banner = s.banner ? `<div class="svc-banner">${esc(s.banner)}</div>` : "";
+  return `<div class="svc"><div class="svc-main"><span>${label}</span>${action}</div>${banner}</div>`;
 }
 
 const NEEDS_CREDS = new Set(["ssh", "rdp", "vnc", "telnet"]);

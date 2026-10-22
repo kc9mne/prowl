@@ -80,8 +80,10 @@ main { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; padding: 1rem
 .detail h3 { margin: 0 0 .3rem; }
 .detail dl { display: grid; grid-template-columns: auto 1fr; gap: .2rem .6rem; margin: .4rem 0; }
 .detail dt { color: var(--muted); } .detail dd { margin: 0; }
-.svc { display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-  padding: .3rem 0; border-top: 1px solid var(--line); }
+.svc { padding: .3rem 0; border-top: 1px solid var(--line); }
+.svc-main { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.svc-banner { font-size: .76rem; color: var(--muted); font-family: ui-monospace, monospace;
+  margin-top: .15rem; word-break: break-word; }
 .svc a, .svc button { font-size: .82rem; padding: .2rem .5rem; }
 .prov { font-size: .78rem; color: var(--muted); }
 

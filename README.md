@@ -34,6 +34,7 @@ prowl --no-browser    # start the UI without opening a browser
 prowl scan            # one-shot discovery of your local subnet, printed as a table
 prowl scan --mode deep --subnet 192.168.1.0/24 --html report.html
 prowl scan --demo     # fabricated data for a UI/report walkthrough — touches no network
+prowl update-oui oui.csv   # load the full IEEE OUI database (offline) for better vendor IDs
 ```
 
 The UI has two scan modes, a map and a table view, a device detail panel with launch links,
@@ -90,6 +91,9 @@ prowl/
     discovery.py   # Mode-1 host discovery (unprivileged)
     ports.py       # async TCP connect scanner (probe set + curated deep set)
     fingerprint.py # deep-mode service ID: HTTP/TLS/SSH/RTSP banners (read-only)
+    snmp.py        # minimal SNMPv2c sysDescr/sysName reader (no dependency)
+    smb.py         # unauthenticated SMB/NTLM computer+domain+OS name
+    ssdp.py        # UPnP/SSDP M-SEARCH discovery
     classify.py    # vendor + ports + banners -> device class + make/model guess
     creds.py       # opt-in default-credential check (lockout-safe, non-destructive)
     oui.py         # offline MAC-prefix -> vendor
@@ -125,9 +129,11 @@ tests/
    **what's new, gone, or changed since last visit** (hosts keyed by MAC, so a DHCP lease
    change reads as *changed*, not new+gone). `prowl scan` prints the same diff; `--data-dir`
    sets where the history lives.
-6. More fingerprinting: SNMP sysDescr, SMB OS string, UPnP/SSDP, mDNS, favicon hashing;
-   fuller OUI database loader.
-7. Extra recon: DHCP/DNS intel, passive mDNS/SSDP/NetBIOS, TLS inventory, printer/camera
+6. ✅ **More fingerprinting** — SNMP sysDescr/sysName (UDP 161, read-only, the best
+   make/model/firmware signal on managed gear), SMB/NTLM computer+domain+OS name
+   (unauthenticated, sends no credentials), and a network-wide UPnP/SSDP sweep — all feeding
+   classification. Plus `prowl update-oui PATH` to load the full IEEE OUI database offline.
+7. Extra recon: DHCP/DNS intel, passive mDNS/NetBIOS/LLMNR, TLS inventory, printer/camera
    exposure, SMB null-session, Wi-Fi survey.
 
 ## Develop

@@ -78,6 +78,15 @@ BANNER_KEYWORDS = [
     ("openssh", ("host", None)),
     ("grandstream", ("voip-phone", "Grandstream")),
     ("yealink", ("voip-phone", "Yealink")),
+    ("samba", ("NAS/file server", "Samba")),
+    ("fortigate", ("firewall", "FortiGate")),
+    ("fortios", ("firewall", "FortiGate")),
+    ("pfsense", ("firewall", "pfSense")),
+    ("juniper", ("network gear", "Juniper")),
+    ("cisco ios", ("network gear", "Cisco IOS")),
+    ("procurve", ("network gear", "HP ProCurve")),
+    ("aruba", ("network gear", "Aruba")),
+    ("ubnt", ("network gear", "Ubiquiti")),
 ]
 
 
@@ -134,6 +143,10 @@ def classify(host: Host) -> None:
 
 
 def _model_from_banner(host: Host) -> str | None:
+    # SNMP sysDescr is the strongest model signal when present.
+    for s in host.services:
+        if s.name == "snmp" and s.banner:
+            return s.banner[:60]
     for s in host.services:
         if not s.banner:
             continue
