@@ -117,15 +117,17 @@ prowl/
   cli.py          # `prowl` entry point (server + one-shot scan)
   server.py       # loopback-only FastAPI UI + JSON API + audit log
   launch.py       # hardened native-client launcher (ssh/rdp/vnc/telnet/smb/web)
-  report.py       # JSON / CSV / HTML report
+  assess.py       # findings engine: severity-ranked security findings from a scan
+  report.py       # JSON / CSV / inventory + security-assessment HTML
   scan/
     net.py         # interfaces, subnet calc, ARP-cache read, gateway, reverse-DNS
     discovery.py   # Mode-1 host discovery (unprivileged)
     ports.py       # async TCP connect scanner (probe set + curated deep set)
     fingerprint.py # deep-mode service ID: HTTP/TLS/SSH/RTSP banners (read-only)
     snmp.py        # minimal SNMPv2c sysDescr/sysName reader (no dependency)
-    smb.py         # unauthenticated SMB/NTLM computer+domain+OS name
+    smb.py         # unauthenticated SMB/NTLM name + SMBv1/signing checks
     ssdp.py        # UPnP/SSDP M-SEARCH discovery
+    vulnprobes.py  # read-only vuln checks: TLS hygiene, unauthenticated data stores
     classify.py    # vendor + ports + banners -> device class + make/model guess
     creds.py       # opt-in default-credential check (lockout-safe, non-destructive)
     oui.py         # offline MAC-prefix -> vendor (+ update-oui loader)
@@ -166,8 +168,12 @@ tests/
    make/model/firmware signal on managed gear), SMB/NTLM computer+domain+OS name
    (unauthenticated, sends no credentials), and a network-wide UPnP/SSDP sweep — all feeding
    classification. Plus `prowl update-oui PATH` to load the full IEEE OUI database offline.
-7. Extra recon: DHCP/DNS intel, passive mDNS/NetBIOS/LLMNR, TLS inventory, printer/camera
-   exposure, SMB null-session, Wi-Fi survey.
+7. ✅ **Read-only vulnerability checks** — TLS hygiene (expired/self-signed certs, obsolete
+   TLS 1.0/1.1 enabled), SMB (SMBv1 enabled, signing not required), and unauthenticated data
+   stores (Redis, Memcached, Elasticsearch, CouchDB). Each becomes a severity-ranked finding
+   in the assessment report. All connect-and-read; nothing is written or authenticated.
+8. Extra recon: DHCP/DNS intel, passive mDNS/NetBIOS/LLMNR, SMB null-session share
+   enumeration, printer/camera exposure, Wi-Fi survey; version→CVE / EOL matching.
 
 ## Develop
 

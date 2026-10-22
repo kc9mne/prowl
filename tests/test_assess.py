@@ -12,7 +12,10 @@ def _result():
              default_creds=True, default_cred_detail={"service": "http", "port": 80,
                                                        "username": "admin", "password": "admin"}),
         Host(ip="192.168.1.60", device_class="host",
-             services=[Service(port=5900, name="vnc", secure=False), Service(port=6379, name="redis", secure=False)]),
+             services=[Service(port=5900, name="vnc", secure=False), Service(port=6379, name="redis", secure=False)],
+             vulns=[{"severity": "critical", "title": "Unauthenticated Redis",
+                     "evidence": "PING answered without AUTH on :6379",
+                     "recommendation": "Require a password.", "category": "data-service"}]),
         Host(ip="192.168.1.70", device_class="host", services=[Service(port=22, name="ssh")]),  # clean
     ]
     return r.as_dict()
@@ -26,7 +29,8 @@ def test_findings_severity_and_order():
     titles = {(f["ip"], f["title"]) for f in fl}
     assert ("192.168.1.1", "Cleartext management (Telnet)") in titles
     assert ("192.168.1.60", "VNC exposed") in titles
-    assert ("192.168.1.60", "Redis exposed") in titles
+    # the Redis finding now comes from the host's vuln probe (host.vulns), as critical
+    assert ("192.168.1.60", "Unauthenticated Redis") in titles
     # a host with only SSH gets no finding
     assert not any(f["ip"] == "192.168.1.70" for f in fl)
 
@@ -35,7 +39,7 @@ def test_summary_counts():
     d = _result()
     fl = assess.findings(d)
     s = assess.summary(d, fl)
-    assert s["counts"]["critical"] == 1
+    assert s["counts"]["critical"] == 2   # default creds (.50) + unauthenticated Redis (.60)
     assert s["hosts_affected"] == 3
     assert s["default_cred_hosts"] == ["192.168.1.50"]
 

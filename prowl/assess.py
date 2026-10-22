@@ -27,6 +27,11 @@ def findings(result: dict) -> list[dict]:
         svc = _ports(h)
         label = f"{h.get('device_class') or 'device'} {h.get('vendor') or ''}".strip()
 
+        # 0) Structured findings from the read-only vuln probes (TLS, SMB, data stores).
+        for v in h.get("vulns", []):
+            add(h, v.get("severity", "low"), v.get("title", "Finding"), v.get("evidence", ""),
+                v.get("recommendation", ""), v.get("category", "vuln"))
+
         # 1) Default credentials — the headline finding.
         if h.get("default_creds"):
             d = h.get("default_cred_detail") or {}
@@ -54,14 +59,6 @@ def findings(result: dict) -> list[dict]:
                 add(h, "high", "VNC exposed",
                     f"VNC open on {port}", "Restrict VNC to a management VLAN/VPN and require a strong "
                     "password; many VNC servers allow unauthenticated access.", "remote-access")
-            elif port == 6379 or name == "redis":
-                add(h, "high", "Redis exposed",
-                    f"Redis open on {port}", "Bind Redis to localhost or require auth; it is frequently "
-                    "left unauthenticated.", "data-service")
-            elif port == 9200 or name == "elasticsearch":
-                add(h, "high", "Elasticsearch exposed",
-                    f"Elasticsearch open on {port}", "Require authentication and restrict access; open "
-                    "clusters leak data.", "data-service")
             elif port == 3389 or name == "rdp":
                 add(h, "medium", "RDP exposed on the LAN",
                     f"RDP open on {port}", "Restrict RDP, require Network Level Authentication, and keep "
@@ -86,8 +83,15 @@ def findings(result: dict) -> list[dict]:
                     f"HTTP admin on {port}" + (f" — {banner}" if banner else ""),
                     "Use HTTPS for the management UI and restrict it to a management network.", "cleartext")
 
-    out.sort(key=lambda f: (SEVERITY_ORDER.get(f["severity"], 9), f["ip"] or ""))
-    return out
+    seen = set()
+    deduped = []
+    for f in out:
+        key = (f["ip"], f["title"])
+        if key not in seen:
+            seen.add(key)
+            deduped.append(f)
+    deduped.sort(key=lambda f: (SEVERITY_ORDER.get(f["severity"], 9), f["ip"] or ""))
+    return deduped
 
 
 def summary(result: dict, flist: list[dict]) -> dict:

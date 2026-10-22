@@ -118,3 +118,56 @@ def _query(ip: str, timeout: float) -> dict | None:
 async def probe(ip: str, timeout: float = 2.0) -> dict | None:
     """Return {nb_computer, nb_domain, dns_computer, dns_domain, os?} or None."""
     return await asyncio.to_thread(_query, ip, timeout)
+
+
+# ---- read-only SMB security checks ----------------------------------------------------
+
+def _smb1_negotiate() -> bytes:
+    # SMB1 header (command 0x72 = negotiate) + one dialect "NT LM 0.12".
+    header = struct.pack("<4sBIBHH12sHHHH", b"\xffSMB", 0x72, 0, 0x18, 0x4301, 0,
+                         b"\x00" * 12, 0, 0xFFFE, 0, 0)
+    dialect = b"\x02NT LM 0.12\x00"
+    body = struct.pack("<B", 0) + struct.pack("<H", len(dialect)) + dialect
+    return header + body
+
+
+def _smb_audit_blocking(ip: str, timeout: float) -> list[dict]:
+    out: list[dict] = []
+    # SMB2 negotiate -> read the server's SecurityMode (signing required?).
+    try:
+        sock = socket.create_connection((ip, 445), timeout=timeout)
+        sock.settimeout(timeout)
+        sock.sendall(_frame(_negotiate()))
+        resp = _recv_frame(sock)
+        sock.close()
+    except OSError:
+        resp = b""
+    if resp[:4] == b"\xfeSMB" or resp[4:8] == b"\xfeSMB":
+        body = resp[resp.find(b"\xfeSMB"):]
+        if len(body) >= 66:
+            security_mode = body[64]   # NegotiateResponse SecurityMode (first byte after 64-byte header)
+            if not (security_mode & 0x02):   # SMB2_NEGOTIATE_SIGNING_REQUIRED
+                out.append({"severity": "medium", "title": "SMB signing not required",
+                            "evidence": "server advertises signing not required",
+                            "recommendation": "Require SMB signing to prevent relay/MITM.",
+                            "category": "smb"})
+    # SMB1 negotiate -> if the server answers SMB1, SMBv1 is still enabled.
+    try:
+        sock = socket.create_connection((ip, 445), timeout=timeout)
+        sock.settimeout(timeout)
+        sock.sendall(_frame(_smb1_negotiate()))
+        r1 = _recv_frame(sock)
+        sock.close()
+    except OSError:
+        r1 = b""
+    if r1[:4] == b"\xffSMB" or r1[4:8] == b"\xffSMB":
+        out.append({"severity": "high", "title": "SMBv1 enabled",
+                    "evidence": "server responded to an SMBv1 negotiate",
+                    "recommendation": "Disable SMBv1 (SMB1); it is obsolete and exploitable "
+                                      "(e.g. EternalBlue).", "category": "smb"})
+    return out
+
+
+async def audit(ip: str, timeout: float = 3.0) -> list[dict]:
+    """Read-only SMB checks: SMBv1 enabled, SMB signing not required."""
+    return await asyncio.to_thread(_smb_audit_blocking, ip, timeout)

@@ -14,7 +14,8 @@ import uuid
 
 import ipaddress as _ip
 
-from . import classify, creds, discovery, fingerprint, macvendor, net, oui, ports, smb, snmp, ssdp
+from . import (classify, creds, discovery, fingerprint, macvendor, net, oui, ports, smb, snmp,
+               ssdp, vulnprobes)
 from .model import Host, ScanResult, Service
 
 # Refuse to enumerate anything bigger than this without an explicit override — a /16 is
@@ -127,6 +128,8 @@ class ScanJob:
                 host.services = sorted(svcs, key=lambda s: s.port)
                 await self._extra_fingerprint(host, set(open_ports), upnp.get(host.ip), do_snmp, timeout)
                 classify.classify(host)
+                if self.deep_opts.get("vuln_checks", True):
+                    await self._vuln_audit(host, set(open_ports), timeout)
             done += 1
             self.progress.update(done=done, total=total, found=done, phase="deep")
 
@@ -169,6 +172,15 @@ class ScanJob:
             bits = [upnp["server"]] + ([upnp["st"]] if upnp.get("st") else [])
             host.services.append(Service(port=1900, proto="udp", name="upnp",
                                          banner=" | ".join(bits)[:160], secure=False))
+
+    async def _vuln_audit(self, host: Host, open_ports: set, timeout: float):
+        """Read-only vulnerability checks (TLS, SMB, unauthenticated data stores)."""
+        try:
+            host.vulns += await vulnprobes.audit(host.ip, open_ports, timeout)
+            if 445 in open_ports:
+                host.vulns += await smb.audit(host.ip, timeout * 2)
+        except OSError:
+            pass
 
         if self.deep_opts.get("check_default_creds") and not self._cancel.is_set():
             await self._check_creds(result)
@@ -270,6 +282,23 @@ class ScanJob:
         if h.ip == "192.168.1.150" and 445 in byport:  # windows host
             byport[445].banner = "SMB FILESERVER / WORKGROUP  OS 10.0 build 19045"
             byport[445].name = "smb"
+            h.vulns += [
+                {"severity": "high", "title": "SMBv1 enabled",
+                 "evidence": "server responded to an SMBv1 negotiate",
+                 "recommendation": "Disable SMBv1; it is obsolete and exploitable (EternalBlue).",
+                 "category": "smb"},
+                {"severity": "medium", "title": "SMB signing not required",
+                 "evidence": "server advertises signing not required",
+                 "recommendation": "Require SMB signing to prevent relay/MITM.", "category": "smb"}]
+        if h.is_gateway and 443 in byport:  # gateway TLS hygiene
+            h.vulns += [
+                {"severity": "high", "title": "Obsolete TLS enabled (TLS 1.0)",
+                 "evidence": "TLS 1.0 handshake accepted on :443",
+                 "recommendation": "Disable TLS 1.0/1.1; require TLS 1.2+.", "category": "tls"},
+                {"severity": "low", "title": "Self-signed TLS certificate",
+                 "evidence": "issuer == subject on :443",
+                 "recommendation": "Use a certificate from a trusted CA for management interfaces.",
+                 "category": "tls"}]
 
     def _demo_cred_hits(self, hosts: list[Host]):
         """Fabricate a couple of default-cred findings so the UI/report can be seen offline."""
