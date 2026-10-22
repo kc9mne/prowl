@@ -14,7 +14,7 @@ import uuid
 
 import ipaddress as _ip
 
-from . import classify, creds, discovery, fingerprint, net, oui, ports, smb, snmp, ssdp
+from . import classify, creds, discovery, fingerprint, macvendor, net, oui, ports, smb, snmp, ssdp
 from .model import Host, ScanResult, Service
 
 # Refuse to enumerate anything bigger than this without an explicit override — a /16 is
@@ -82,6 +82,15 @@ class ScanJob:
         result = ScanResult(mode=self.mode, subnet=str(network), gateway=disc["gateway"])
         result.hosts = disc["hosts"]
         result.notes = disc["notes"]
+
+        if self.deep_opts.get("online_oui") and not self._cancel.is_set():
+            self.progress["phase"] = "mac-vendor"
+            try:
+                n = await macvendor.enrich_hosts(result.hosts, audit=self.audit)
+                if n:
+                    result.notes.append(f"Online MAC lookup named {n} device(s) the offline DB missed.")
+            except Exception:
+                pass  # never let an optional online step fail a scan
 
         if self.mode == "deep" and not self._cancel.is_set():
             await self._deep(result)

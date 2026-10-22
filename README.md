@@ -34,8 +34,23 @@ prowl --no-browser    # start the UI without opening a browser
 prowl scan            # one-shot discovery of your local subnet, printed as a table
 prowl scan --mode deep --subnet 192.168.1.0/24 --html report.html
 prowl scan --demo     # fabricated data for a UI/report walkthrough — touches no network
-prowl update-oui oui.csv   # load the full IEEE OUI database (offline) for better vendor IDs
+prowl scan --online-oui    # also name unknown MAC vendors via maclookup.app (opt-in, online)
+prowl update-oui oui.csv   # load a full OUI database (offline) for better vendor IDs
 ```
+
+### MAC → vendor coverage
+
+Prowl ships a small OUI subset. For near-complete vendor names, load a full database **once**
+(it works fully offline afterward):
+
+- Download a full OUI database — the IEEE registry (`oui.csv`/`oui.txt`) or the
+  [maclookup.app CSV](https://maclookup.app/downloads/csv-database) — and run
+  `prowl update-oui <file>`. It's cached in your user data dir and overrides the bundled subset.
+- Or, as an **opt-in** per scan, `--online-oui` (UI: "online MAC lookup") queries maclookup.app
+  for only the prefixes the local database misses, and **caches every hit back into your local
+  database**. Note: this sends device MAC prefixes to a third party — a confidentiality
+  consideration during an assessment — so it is off by default. Set `PROWL_MACLOOKUP_KEY` for a
+  higher rate limit.
 
 The UI has two scan modes, a map and a table view, a device detail panel with launch links,
 and CSV/JSON/HTML report export.
@@ -96,7 +111,8 @@ prowl/
     ssdp.py        # UPnP/SSDP M-SEARCH discovery
     classify.py    # vendor + ports + banners -> device class + make/model guess
     creds.py       # opt-in default-credential check (lockout-safe, non-destructive)
-    oui.py         # offline MAC-prefix -> vendor
+    oui.py         # offline MAC-prefix -> vendor (+ update-oui loader)
+    macvendor.py   # optional online MAC lookup (maclookup.app), caches to the local DB
     scanner.py     # scan jobs: progress, cancel, demo mode
     model.py       # Host / Service / ScanResult
     data/oui.csv      # bundled offline OUI subset

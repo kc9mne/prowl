@@ -103,6 +103,13 @@ def test_parse_ieee_txt_and_csv():
                 "MA-L,001122,Acme Networks,Somewhere\n")
     c = oui.parse_ieee(csv_text)
     assert c["001122"] == "Acme Networks"
+    # maclookup.app CSV: Mac Prefix,Vendor Name,Private,Block Type,Last Update
+    ml = ("Mac Prefix,Vendor Name,Private,Block Type,Last Update\n"
+          "00:00:0C,Cisco Systems Inc,false,MA-L,2015/11/17\n"
+          "8C:1F:64:B8,Some MA-M Vendor,false,MA-M,2020/01/01\n")
+    m = oui.parse_ieee(ml)
+    assert m["00000C"] == "Cisco Systems Inc"
+    assert m["8C1F64"] == "Some MA-M Vendor"   # MA-M prefix truncated to the 24-bit OUI
 
 
 def test_update_oui_user_db(tmp_path, monkeypatch):

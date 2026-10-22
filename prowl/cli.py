@@ -33,13 +33,15 @@ def main(argv=None):
     s.add_argument("--subnet", help="CIDR to scan (default: auto-detect local subnet)")
     s.add_argument("--demo", action="store_true", help="fabricated data; touches no network")
     s.add_argument("--allow-large", action="store_true", help="permit subnets larger than /20")
+    s.add_argument("--online-oui", action="store_true",
+                   help="look up unknown MAC vendors at maclookup.app (opt-in; sends MAC prefixes online)")
     s.add_argument("--data-dir", help="directory for the scan history database (default: user data dir)")
     s.add_argument("--json", metavar="FILE", help="write a JSON report")
     s.add_argument("--csv", metavar="FILE", help="write a CSV report")
     s.add_argument("--html", metavar="FILE", help="write an HTML report")
 
-    u = sub.add_parser("update-oui", help="ingest a local IEEE OUI file (oui.csv or oui.txt)")
-    u.add_argument("path", help="path to the IEEE oui.csv or oui.txt file")
+    u = sub.add_parser("update-oui", help="ingest a local OUI database (IEEE oui.csv/oui.txt or maclookup.app CSV)")
+    u.add_argument("path", help="path to an IEEE oui.csv/oui.txt or a maclookup.app CSV export")
 
     args = ap.parse_args(argv)
     if args.cmd == "scan":
@@ -64,7 +66,8 @@ def _scan_cli(args) -> int:
     async def go():
         mgr = ScanManager()
         job = mgr.start(mode=args.mode, subnet=args.subnet,
-                        deep_opts={"allow_large": args.allow_large}, demo=args.demo)
+                        deep_opts={"allow_large": args.allow_large, "online_oui": args.online_oui},
+                        demo=args.demo)
         while job.status in ("queued", "running"):
             p = job.progress
             print(f"\r{p['phase']}: {p['done']}/{p['total']} probed, {p['found']} found", end="", file=sys.stderr)

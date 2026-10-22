@@ -35,7 +35,10 @@ async function startScan(demo) {
   const body = { mode, demo: !!demo };
   const subnet = $("#subnet").value.trim();
   if (subnet && !demo) body.subnet = subnet;
-  if (wantCreds) body.deep_opts = { check_default_creds: true };
+  const opts = {};
+  if (wantCreds) opts.check_default_creds = true;
+  if ($("#onlineChk").checked) opts.online_oui = true;
+  if (Object.keys(opts).length) body.deep_opts = opts;
   DIFF = null; $("#diffBar").hidden = true;
   setBusy(true);
   try {
