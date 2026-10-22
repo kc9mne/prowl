@@ -303,6 +303,36 @@ function markSelected() {
     el.classList.toggle("sel", el.dataset.ip === selected);
 }
 
+// ---------- MAC vendor database ----------
+async function ouiStatus() {
+  try {
+    const s = await api("/api/oui/status");
+    $("#ouiStatus").textContent = `${s.prefixes.toLocaleString()} prefixes loaded` +
+      (s.has_user_db ? " (incl. your updates)" : " (bundled subset only)");
+    if (!$("#ouiUrl").value) $("#ouiUrl").value = s.default_url || "";
+  } catch (e) { $("#ouiStatus").textContent = "status unavailable"; }
+}
+async function ouiUpdate(payload, label) {
+  toast(`Updating MAC database (${label})…`);
+  try {
+    const r = await api("/api/oui/update", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload) });
+    toast(`✓ MAC database updated — ${r.prefixes.toLocaleString()} prefixes`);
+    ouiStatus();
+  } catch (e) { toast("Update failed: " + e.message, true); }
+}
+$("#ouiBtn").onclick = () => { $("#ouiModal").hidden = false; ouiStatus(); };
+$("#ouiCancel").onclick = () => { $("#ouiModal").hidden = true; };
+$("#ouiGo").onclick = () => ouiUpdate({ url: $("#ouiUrl").value.trim() || undefined }, "download");
+$("#ouiFileBtn").onclick = () => $("#ouiFileInput").click();
+$("#ouiFileInput").onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  ouiUpdate({ text }, file.name);
+  e.target.value = "";
+};
+
 // wiring
 function syncCredToggle() { $("#credWrap").hidden = $("#mode").value !== "deep"; }
 $("#mode").addEventListener("change", syncCredToggle);

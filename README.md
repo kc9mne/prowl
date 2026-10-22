@@ -43,8 +43,10 @@ prowl update-oui oui.csv   # load a full OUI database (offline) for better vendo
 Prowl ships a small OUI subset. For near-complete vendor names, load a full database **once**
 (it works fully offline afterward):
 
-- Download a full OUI database — the IEEE registry (`oui.csv`/`oui.txt`) or the
-  [maclookup.app CSV](https://maclookup.app/downloads/csv-database) — and run
+- **In the UI**, click **MAC DB** → *Update from URL* (defaults to the IEEE registry) or
+  *Upload file…* to ingest a database you downloaded (e.g. the maclookup.app CSV).
+- Or from the terminal: download a full OUI database — the IEEE registry (`oui.csv`/`oui.txt`)
+  or the [maclookup.app CSV](https://maclookup.app/downloads/csv-database) — and run
   `prowl update-oui <file>`. It's cached in your user data dir and overrides the bundled subset.
 - Or, as an **opt-in** per scan, `--online-oui` (UI: "online MAC lookup") queries maclookup.app
   for only the prefixes the local database misses, and **caches every hit back into your local

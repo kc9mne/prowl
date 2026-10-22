@@ -112,6 +112,23 @@ def test_parse_ieee_txt_and_csv():
     assert m["8C1F64"] == "Some MA-M Vendor"   # MA-M prefix truncated to the 24-bit OUI
 
 
+def test_oui_update_endpoint(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from prowl.server import create_app, loopback_only
+    monkeypatch.setattr(oui, "user_db_path", lambda: tmp_path / "oui.csv")
+    oui._table.cache_clear()
+    app = create_app(db_path=tmp_path / "prowl.db")
+    app.dependency_overrides[loopback_only] = lambda: None
+    c = TestClient(app)
+    assert "prefixes" in c.get("/api/oui/status").json()
+    r = c.post("/api/oui/update", json={"text": "00-11-22   (hex)\t\tTest Vendor\n"})
+    assert r.status_code == 200 and r.json()["prefixes"] == 1
+    oui._table.cache_clear()
+    assert oui.lookup("00:11:22:00:00:00") == "Test Vendor"
+    # a payload with no OUI records is a 400, not a crash
+    assert c.post("/api/oui/update", json={"text": "nonsense"}).status_code == 400
+
+
 def test_update_oui_user_db(tmp_path, monkeypatch):
     dest = tmp_path / "oui.csv"
     monkeypatch.setattr(oui, "user_db_path", lambda: dest)

@@ -185,6 +185,28 @@ def create_app(db_path=None) -> FastAPI:
         items = list(audit)[-min(limit, 500):]
         return {"events": list(reversed(items))}
 
+    @app.get("/api/oui/status", dependencies=guard)
+    def oui_status():
+        from .scan import oui
+        return {**oui.status(), "default_url": oui.DEFAULT_OUI_URL}
+
+    @app.post("/api/oui/update", dependencies=guard)
+    def oui_update(body: dict):
+        from .scan import oui
+        try:
+            if body.get("text"):
+                n = oui.update_from_text(body["text"], "uploaded file")
+                src = "uploaded file"
+            else:
+                src = body.get("url") or oui.DEFAULT_OUI_URL
+                n = oui.update_from_url(body.get("url") or None)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        except OSError as e:
+            raise HTTPException(502, f"could not fetch the database: {e}")
+        record("oui-update", f"loaded {n} prefixes from {src}")
+        return {"ok": True, "prefixes": n, "source": src}
+
     # Static UI last, so /api/* wins.
     app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
     return app

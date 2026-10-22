@@ -26,6 +26,7 @@
     <button id="scanBtn" class="primary">Scan</button>
     <button id="demoBtn" title="Fabricated data, touches no network">Demo</button>
     <button id="cancelBtn" hidden>Cancel</button>
+    <button id="ouiBtn" title="Update the MAC vendor database">MAC&nbsp;DB</button>
   </div>
 </header>
 
@@ -82,6 +83,22 @@
     <div class="row">
       <button id="authCancel">Cancel</button>
       <button id="authGo" class="primary" disabled>Authorize &amp; scan</button>
+    </div>
+  </div>
+</div>
+
+<div id="ouiModal" class="modal" hidden>
+  <div class="card">
+    <h3>MAC vendor database</h3>
+    <p id="ouiStatus" class="muted">Loading…</p>
+    <label>Download URL
+      <input id="ouiUrl" type="text" spellcheck="false"></label>
+    <p class="prov">IEEE registry by default. For the maclookup.app CSV, upload the file instead.</p>
+    <input id="ouiFileInput" type="file" accept=".csv,.txt" hidden>
+    <div class="row">
+      <button id="ouiCancel">Close</button>
+      <button id="ouiFileBtn">Upload file…</button>
+      <button id="ouiGo" class="primary">Update from URL</button>
     </div>
   </div>
 </div>
