@@ -32,7 +32,7 @@ Requires Python 3.11+. Dependencies: FastAPI, uvicorn, psutil.
 prowl                 # start the local UI (http://127.0.0.1:7474) and open a browser
 prowl --no-browser    # start the UI without opening a browser
 prowl scan            # one-shot discovery of your local subnet, printed as a table
-prowl scan --mode deep --subnet 192.168.1.0/24 --html report.html
+prowl scan --mode deep --subnet 192.168.1.0/24 --assessment report.html   # security report
 prowl scan --demo     # fabricated data for a UI/report walkthrough — touches no network
 prowl scan --online-oui    # also name unknown MAC vendors via maclookup.app (opt-in, online)
 prowl update-oui oui.csv   # load a full OUI database (offline) for better vendor IDs
@@ -68,7 +68,9 @@ the opt-in default-cred check — the **two-passwords-per-username lockout cap s
 a bigger database never means more attempts per device.
 
 The UI has two scan modes, a map and a table view, a device detail panel with launch links,
-and CSV/JSON/HTML report export.
+and report export — including a **security assessment** report that leads with severity-ranked
+findings (default-credential devices, exposed/cleartext/management services) and an executive
+summary, over a full device inventory.
 
 ## Scan modes
 

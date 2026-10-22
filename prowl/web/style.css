@@ -53,6 +53,8 @@ main { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; padding: 1rem
 .tabs .spacer { flex: 1; }
 .tabs button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .dl { text-decoration: none; color: var(--accent); font-size: .85rem; }
+.dl-assess { background: var(--accent); color: var(--accent-ink); padding: .25rem .6rem;
+  border-radius: 7px; font-weight: 600; }
 
 .map { display: flex; flex-wrap: wrap; gap: .6rem; align-content: flex-start; }
 .node { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;

@@ -159,7 +159,9 @@ def create_app(db_path=None) -> FastAPI:
                                      headers={"Content-Disposition": 'attachment; filename="prowl-report.csv"'})
         if fmt == "html":
             return HTMLResponse(report.to_html(j.result))
-        raise HTTPException(400, "format must be json, csv, or html")
+        if fmt == "assessment":
+            return HTMLResponse(report.to_assessment_html(j.result))
+        raise HTTPException(400, "format must be json, csv, html, or assessment")
 
     @app.post("/api/launch", dependencies=guard)
     def launch(body: dict):

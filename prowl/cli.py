@@ -38,7 +38,8 @@ def main(argv=None):
     s.add_argument("--data-dir", help="directory for the scan history database (default: user data dir)")
     s.add_argument("--json", metavar="FILE", help="write a JSON report")
     s.add_argument("--csv", metavar="FILE", help="write a CSV report")
-    s.add_argument("--html", metavar="FILE", help="write an HTML report")
+    s.add_argument("--html", metavar="FILE", help="write an HTML inventory report")
+    s.add_argument("--assessment", metavar="FILE", help="write an HTML security-assessment report")
 
     u = sub.add_parser("update-oui", help="ingest a local OUI database (IEEE oui.csv/oui.txt or maclookup.app CSV)")
     u.add_argument("path", help="path to an IEEE oui.csv/oui.txt or a maclookup.app CSV export")
@@ -105,6 +106,8 @@ def _scan_cli(args) -> int:
             _write(args.csv, report.to_csv(result))
         if args.html:
             _write(args.html, report.to_html(result))
+        if args.assessment:
+            _write(args.assessment, report.to_assessment_html(result))
         return 0
 
     return asyncio.run(go())

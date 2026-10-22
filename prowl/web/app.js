@@ -81,7 +81,8 @@ function setBusy(b) {
 function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
 function showDownloads(on) {
-  for (const [id, fmt] of [["#dlCsv", "csv"], ["#dlJson", "json"], ["#dlHtml", "html"]]) {
+  for (const [id, fmt] of [["#dlAssess", "assessment"], ["#dlCsv", "csv"],
+                           ["#dlJson", "json"], ["#dlHtml", "html"]]) {
     const a = $(id); a.hidden = !on; a.href = `/api/report.${fmt}` + (JOB ? `?job=${JOB}` : "");
     if (fmt !== "csv") a.target = "_blank";
   }
