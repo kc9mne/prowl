@@ -207,6 +207,30 @@ def create_app(db_path=None) -> FastAPI:
         record("oui-update", f"loaded {n} prefixes from {src}")
         return {"ok": True, "prefixes": n, "source": src}
 
+    @app.get("/api/creds/status", dependencies=guard)
+    def creds_status():
+        from .scan import creds
+        return creds.status()
+
+    @app.post("/api/creds/update", dependencies=guard)
+    def creds_update(body: dict):
+        from .scan import creds
+        try:
+            if body.get("text"):
+                res = creds.import_from_text(body["text"])
+                src = "uploaded file"
+            else:
+                src = body.get("url") or ""
+                if not src:
+                    raise HTTPException(400, "provide a URL or upload a file")
+                res = creds.import_from_url(src)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        except OSError as e:
+            raise HTTPException(502, f"could not fetch the database: {e}")
+        record("creds-update", f"imported {res['vendors']} vendors / {res['entries']} creds from {src}")
+        return {"ok": True, **res, "source": src}
+
     # Static UI last, so /api/* wins.
     app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
     return app

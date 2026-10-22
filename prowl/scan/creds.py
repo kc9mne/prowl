@@ -22,7 +22,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import csv
+import json
 import random
+import re
 import ssl
 from functools import lru_cache
 from pathlib import Path
@@ -50,6 +53,35 @@ def _db() -> dict:
         return yaml.safe_load(f) or {}
 
 
+def user_db_path() -> Path:
+    from ..store import default_db_path
+    return default_db_path().parent / "creds-user.json"
+
+
+@lru_cache(maxsize=1)
+def _user_db() -> dict:
+    """Imported default-credential database: {vendor_key: [{user, passwords:[...]}]}."""
+    p = user_db_path()
+    if not p.exists():
+        return {}
+    try:
+        with p.open(encoding="utf-8") as f:
+            return json.load(f) or {}
+    except (ValueError, OSError):
+        return {}
+
+
+def _user_matches(vendor: str, cls: str) -> list[dict]:
+    """Entries from the imported DB whose vendor key matches this host's vendor or class."""
+    out: list[dict] = []
+    for key, entries in _user_db().items():
+        if len(key) < 3:
+            continue
+        if (key in vendor or (vendor and vendor in key) or (cls and (key in cls or cls in key))):
+            out += entries
+    return out
+
+
 def mask(pw: str) -> str:
     if pw == "":
         return "(blank)"
@@ -65,8 +97,9 @@ def candidates(host: Host) -> list[tuple[str, list[str]]]:
     cls = (host.device_class or "").lower()
     # Order matters: vendor- and class-specific defaults come FIRST so they occupy the
     # per-username password cap ahead of the generic fallbacks (the device's own documented
-    # default is the one most likely to still be set).
-    sets: list[dict] = []
+    # default is the one most likely to still be set). The imported database is consulted
+    # alongside the bundled vendor entries.
+    sets: list[dict] = _user_matches(vendor, cls)
     for key, entries in (db.get("vendors") or {}).items():
         if key in vendor:
             sets += entries
@@ -257,3 +290,115 @@ async def check_host(host: Host, *, timeout: float = 3.0, audit=None, cancel=Non
                     break
                 await asyncio.sleep(ATTEMPT_DELAY + random.uniform(0, 0.3))
     return
+
+
+# ---- importing an external default-credentials database --------------------------------
+
+_VENDOR_KEYS = ("vendor", "manufacturer", "make", "brand", "company")
+_PRODUCT_KEYS = ("product", "model", "device", "equipment", "type")
+_USER_KEYS = ("username", "user", "login", "account", "user name")
+_PASS_KEYS = ("password", "pass", "passwd", "pwd", "default password")
+_COMBO_KEYS = ("credentials", "credential", "default", "login")
+
+
+def _split_combo(value: str):
+    """Split an 'admin/admin' or 'admin:admin' style field into (user, password)."""
+    for sep in (":", "/", "|"):
+        if sep in value:
+            u, _, p = value.partition(sep)
+            return u.strip(), p.strip()
+    return value.strip(), ""
+
+
+def _pick(row: dict, keys) -> str | None:
+    for k, v in row.items():
+        if k and any(w == k or w in k for w in keys):
+            return v
+    return None
+
+
+def parse_cred_export(text: str) -> list[tuple[str, str, str]]:
+    """Parse a default-credential export (JSON or CSV) into [(vendor, username, password)].
+
+    Auto-detects the vendor/username/password columns; falls back to splitting a combined
+    'credentials' field. Blank passwords are kept (they are a real default).
+    """
+    text = text.strip()
+    rows: list[dict] = []
+    if text[:1] in ("[", "{"):
+        try:
+            data = json.loads(text)
+            rows = data if isinstance(data, list) else data.get("data") or data.get("entries") or []
+        except ValueError:
+            rows = []
+    if not rows:
+        reader = csv.DictReader(text.splitlines())
+        rows = [{(k or "").strip().lower(): (v or "") for k, v in r.items()} for r in reader]
+    else:
+        rows = [{str(k).strip().lower(): ("" if v is None else str(v)) for k, v in r.items()}
+                for r in rows if isinstance(r, dict)]
+
+    out: list[tuple[str, str, str]] = []
+    for r in rows:
+        vendor = (_pick(r, _VENDOR_KEYS) or "").strip()
+        user = _pick(r, _USER_KEYS)
+        pw = _pick(r, _PASS_KEYS)
+        if user is None and pw is None:
+            combo = _pick(r, _COMBO_KEYS)
+            if combo:
+                user, pw = _split_combo(combo)
+        if user is None:
+            continue
+        user = user.strip()
+        pw = (pw or "").strip()
+        if user.lower() in ("", "n/a", "none", "<blank>"):
+            user = ""
+        if pw.lower() in ("n/a", "none", "<blank>", "(none)"):
+            pw = ""
+        if not vendor or not user:
+            continue
+        out.append((vendor, user, pw))
+    return out
+
+
+def import_from_text(text: str) -> dict:
+    """Replace the imported default-credential database. Returns {vendors, entries}."""
+    triples = parse_cred_export(text)
+    if not triples:
+        raise ValueError("no credential records found — expected a CSV or JSON export "
+                         "with vendor, username and password columns")
+    db: dict[str, dict[str, list[str]]] = {}
+    total = 0
+    for vendor, user, pw in triples:
+        key = vendor.lower()
+        bucket = db.setdefault(key, {})
+        pwlist = bucket.setdefault(user, [])
+        if pw not in pwlist:
+            pwlist.append(pw)
+            total += 1
+    out = {k: [{"user": u, "passwords": pl} for u, pl in users.items()] for k, users in db.items()}
+    dest = user_db_path()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with dest.open("w", encoding="utf-8") as f:
+        json.dump(out, f)
+    _user_db.cache_clear()
+    return {"vendors": len(out), "entries": total}
+
+
+def import_from_url(url: str, timeout: float = 60.0) -> dict:
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "Prowl/0.1"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        text = resp.read().decode("utf-8", "replace")
+    return import_from_text(text)
+
+
+def status() -> dict:
+    """Counts for the bundled + imported default-credential data."""
+    udb = _user_db()
+    imported_pw = sum(len(e.get("passwords", [])) for entries in udb.values() for e in entries)
+    bundled = _db()
+    bundled_vendors = len(bundled.get("vendors") or {})
+    return {"bundled_vendors": bundled_vendors, "imported_vendors": len(udb),
+            "imported_passwords": imported_pw, "user_db": str(user_db_path()),
+            "has_user_db": user_db_path().exists()}

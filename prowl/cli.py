@@ -43,12 +43,31 @@ def main(argv=None):
     u = sub.add_parser("update-oui", help="ingest a local OUI database (IEEE oui.csv/oui.txt or maclookup.app CSV)")
     u.add_argument("path", help="path to an IEEE oui.csv/oui.txt or a maclookup.app CSV export")
 
+    cu = sub.add_parser("update-creds", help="ingest a default-credentials export (CSV or JSON)")
+    cu.add_argument("path", help="path to a default-credentials CSV/JSON export")
+
     args = ap.parse_args(argv)
     if args.cmd == "scan":
         return _scan_cli(args)
     if args.cmd == "update-oui":
         return _update_oui(args)
+    if args.cmd == "update-creds":
+        return _update_creds(args)
     return _serve(args)
+
+
+def _update_creds(args) -> int:
+    from pathlib import Path
+
+    from .scan import creds
+    try:
+        res = creds.import_from_text(Path(args.path).read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError) as e:
+        print(f"update-creds failed: {e}", file=sys.stderr)
+        return 1
+    print(f"imported {res['vendors']} vendors / {res['entries']} credentials into {creds.user_db_path()}",
+          file=sys.stderr)
+    return 0
 
 
 def _update_oui(args) -> int:

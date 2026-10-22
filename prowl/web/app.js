@@ -333,6 +333,40 @@ $("#ouiFileInput").onchange = async (e) => {
   e.target.value = "";
 };
 
+// ---------- default-credentials database ----------
+async function credsStatus() {
+  try {
+    const s = await api("/api/creds/status");
+    $("#credsStatus").textContent =
+      `${s.bundled_vendors} bundled vendors` +
+      (s.imported_vendors ? ` + ${s.imported_vendors.toLocaleString()} imported vendors ` +
+        `(${s.imported_passwords.toLocaleString()} credentials)` : " (no import yet)");
+  } catch (e) { $("#credsStatus").textContent = "status unavailable"; }
+}
+async function credsUpdate(payload, label) {
+  toast(`Importing credentials (${label})…`);
+  try {
+    const r = await api("/api/creds/update", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload) });
+    toast(`✓ Imported ${r.vendors.toLocaleString()} vendors / ${r.entries.toLocaleString()} credentials`);
+    credsStatus();
+  } catch (e) { toast("Import failed: " + e.message, true); }
+}
+$("#credsBtn").onclick = () => { $("#credsModal").hidden = false; credsStatus(); };
+$("#credsCancel").onclick = () => { $("#credsModal").hidden = true; };
+$("#credsGo").onclick = () => {
+  const url = $("#credsUrl").value.trim();
+  if (!url) { toast("Enter a URL or use Upload file…", true); return; }
+  credsUpdate({ url }, "download");
+};
+$("#credsFileBtn").onclick = () => $("#credsFileInput").click();
+$("#credsFileInput").onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  credsUpdate({ text: await file.text() }, file.name);
+  e.target.value = "";
+};
+
 // wiring
 function syncCredToggle() { $("#credWrap").hidden = $("#mode").value !== "deep"; }
 $("#mode").addEventListener("change", syncCredToggle);

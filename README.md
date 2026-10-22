@@ -54,6 +54,19 @@ Prowl ships a small OUI subset. For near-complete vendor names, load a full data
   consideration during an assessment — so it is off by default. Set `PROWL_MACLOOKUP_KEY` for a
   higher rate limit.
 
+### Default-credentials database
+
+The bundled defaults cover common vendors. To cover many more, import an external database
+(e.g. the [defaultcredentials.org export](https://www.defaultcredentials.org/en/export)):
+
+- **In the UI**, click **Creds DB** → *Update from URL* or *Upload file…*.
+- Or: `prowl update-creds <file>`.
+
+Any CSV or JSON with vendor, username, and password columns works (columns are auto-detected;
+a combined `admin/admin` field is split). Imported entries run fully offline/internal and feed
+the opt-in default-cred check — the **two-passwords-per-username lockout cap still applies**, so
+a bigger database never means more attempts per device.
+
 The UI has two scan modes, a map and a table view, a device detail panel with launch links,
 and CSV/JSON/HTML report export.
 

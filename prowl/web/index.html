@@ -27,6 +27,7 @@
     <button id="demoBtn" title="Fabricated data, touches no network">Demo</button>
     <button id="cancelBtn" hidden>Cancel</button>
     <button id="ouiBtn" title="Update the MAC vendor database">MAC&nbsp;DB</button>
+    <button id="credsBtn" title="Import a default-credentials database">Creds&nbsp;DB</button>
   </div>
 </header>
 
@@ -99,6 +100,24 @@
       <button id="ouiCancel">Close</button>
       <button id="ouiFileBtn">Upload file…</button>
       <button id="ouiGo" class="primary">Update from URL</button>
+    </div>
+  </div>
+</div>
+
+<div id="credsModal" class="modal" hidden>
+  <div class="card">
+    <h3>Default-credentials database</h3>
+    <p id="credsStatus" class="muted">Loading…</p>
+    <label>Download URL
+      <input id="credsUrl" type="text" spellcheck="false"
+             placeholder="https://www.defaultcredentials.org/en/export (CSV or JSON)"></label>
+    <p class="prov">Expands the opt-in default-cred check. Any CSV/JSON with vendor, username and
+      password columns works. The 2-passwords-per-username lockout cap still applies at scan time.</p>
+    <input id="credsFileInput" type="file" accept=".csv,.json,.txt" hidden>
+    <div class="row">
+      <button id="credsCancel">Close</button>
+      <button id="credsFileBtn">Upload file…</button>
+      <button id="credsGo" class="primary">Update from URL</button>
     </div>
   </div>
 </div>

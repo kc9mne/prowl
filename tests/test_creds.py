@@ -110,3 +110,43 @@ def test_authorization_gate():
     app2 = create_app()
     app2.dependency_overrides[loopback_only] = lambda: None
     assert TestClient(app2).post("/api/authorize", json={"ack": False}).status_code == 400
+
+
+# ---- importing an external default-credentials database --------------------------------
+
+def test_parse_cred_export_csv_and_json():
+    csv_text = ("vendor,product,username,password\n"
+                "Acme,Router 1,admin,admin\n"
+                "Acme,Router 1,admin,password\n"
+                "Globex,Cam,root,\n")      # blank password kept
+    rows = creds.parse_cred_export(csv_text)
+    assert ("Acme", "admin", "admin") in rows
+    assert ("Globex", "root", "") in rows
+
+    json_text = '[{"manufacturer":"Initech","user":"super","pass":"1234"}]'
+    assert creds.parse_cred_export(json_text) == [("Initech", "super", "1234")]
+
+    # combined credentials column
+    combo = "vendor,credentials\nFoo,admin/secret\n"
+    assert creds.parse_cred_export(combo) == [("Foo", "admin", "secret")]
+
+
+def test_import_and_candidates_use_imported_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(creds, "user_db_path", lambda: tmp_path / "creds-user.json")
+    creds._user_db.cache_clear()
+    res = creds.import_from_text(
+        "vendor,username,password\nTenda,admin,tenda1234\nTenda,admin,admin\nTenda,root,root\n")
+    assert res["vendors"] == 1 and res["entries"] == 3
+    creds._user_db.cache_clear()
+
+    h = Host(ip="10.0.0.5", vendor="Tenda Technology", device_class="router")
+    cands = dict(creds.candidates(h))
+    # imported admin passwords should appear, still capped to two per username
+    assert "admin" in cands and len(cands["admin"]) <= creds.MAX_PW_PER_USER
+    assert "tenda1234" in cands["admin"]   # imported vendor default present
+
+
+def test_import_rejects_empty():
+    import pytest
+    with pytest.raises(ValueError):
+        creds.import_from_text("just,some\nrandom,text\n")
