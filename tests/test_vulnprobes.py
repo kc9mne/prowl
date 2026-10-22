@@ -32,6 +32,33 @@ def _serve_once(handler):
     return port
 
 
+def _serve_raw(handler):
+    """Like _serve_once but does NOT pre-read — for server-speaks-first protocols (FTP, VNC)."""
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    port = srv.getsockname()[1]
+
+    def run():
+        srv.settimeout(3)
+        try:
+            conn, _ = srv.accept()
+            with conn:
+                conn.settimeout(2)
+                try:
+                    handler(conn)
+                except OSError:
+                    pass
+        except socket.timeout:
+            pass
+        finally:
+            srv.close()
+
+    threading.Thread(target=run, daemon=True).start()
+    return port
+
+
 def test_redis_tcp_primitive():
     # _datastore_blocking only probes fixed ports (6379, ...), which need privilege to bind,
     # so exercise the detection primitive: an unauth Redis answers +PONG; an authed one -NOAUTH.
@@ -39,6 +66,70 @@ def test_redis_tcp_primitive():
     assert vulnprobes._tcp("127.0.0.1", unauth, b"PING\r\n", 2.0).startswith(b"+PONG")
     authed = _serve_once(lambda c, d: c.sendall(b"-NOAUTH Authentication required.\r\n"))
     assert vulnprobes._tcp("127.0.0.1", authed, b"PING\r\n", 2.0).startswith(b"-NOAUTH")
+
+
+def test_anonymous_ftp_detected():
+    def handler(c):
+        c.sendall(b"220 ready\r\n")
+        c.recv(64)                 # USER anonymous
+        c.sendall(b"331 need password\r\n")
+        c.recv(64)                 # PASS
+        c.sendall(b"230 logged in\r\n")
+    port = _serve_raw(handler)
+    out = vulnprobes._ftp_anon_blocking("127.0.0.1", 2.0, port=port)
+    assert out and out[0]["title"] == "Anonymous FTP enabled"
+
+
+def test_ftp_anon_rejected_no_finding():
+    def handler(c):
+        c.sendall(b"220 ready\r\n"); c.recv(64)
+        c.sendall(b"331 need password\r\n"); c.recv(64)
+        c.sendall(b"530 login incorrect\r\n")
+    port = _serve_raw(handler)
+    assert vulnprobes._ftp_anon_blocking("127.0.0.1", 2.0, port=port) == []
+
+
+def test_vnc_no_auth_detected():
+    def handler(c):
+        c.sendall(b"RFB 003.008\n")
+        c.recv(12)                 # client version
+        c.sendall(bytes([2, 1, 2]))   # 2 security types: None(1), VNCAuth(2)
+    port = _serve_raw(handler)
+    out = vulnprobes._vnc_noauth_blocking("127.0.0.1", port, 2.0)
+    assert out and "unauthenticated" in out[0]["title"]
+
+
+def test_vnc_auth_required_no_finding():
+    def handler(c):
+        c.sendall(b"RFB 003.008\n"); c.recv(12)
+        c.sendall(bytes([1, 2]))   # only VNCAuth(2)
+    port = _serve_raw(handler)
+    assert vulnprobes._vnc_noauth_blocking("127.0.0.1", port, 2.0) == []
+
+
+def test_dns_open_resolver_detected():
+    import socket as _s
+
+    srv = _s.socket(_s.AF_INET, _s.SOCK_DGRAM)
+    srv.bind(("127.0.0.1", 0))
+    port = srv.getsockname()[1]
+
+    def run():
+        srv.settimeout(3)
+        try:
+            data, addr = srv.recvfrom(512)
+            # echo id, set flags RA+QR+RD (0x8180), 1 question, 1 answer
+            resp = data[:2] + b"\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00" + data[12:]
+            resp += b"\xc0\x0c\x00\x01\x00\x01\x00\x00\x00\x3c\x00\x04\x5d\xb8\xd8\x22"
+            srv.sendto(resp, addr)
+        except _s.timeout:
+            pass
+        finally:
+            srv.close()
+
+    threading.Thread(target=run, daemon=True).start()
+    out = vulnprobes._dns_resolver_blocking("127.0.0.1", 2.0, port=port)
+    assert out and out[0]["title"] == "Open DNS resolver"
 
 
 def test_elasticsearch_unauth_shape():

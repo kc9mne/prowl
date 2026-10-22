@@ -127,7 +127,8 @@ prowl/
     snmp.py        # minimal SNMPv2c sysDescr/sysName reader (no dependency)
     smb.py         # unauthenticated SMB/NTLM name + SMBv1/signing checks
     ssdp.py        # UPnP/SSDP M-SEARCH discovery
-    vulnprobes.py  # read-only vuln checks: TLS hygiene, unauthenticated data stores
+    vulnprobes.py  # read-only vuln checks: TLS, data stores, FTP/DNS/VNC/NFS
+    eol.py         # end-of-life / unsupported OS & software detection
     classify.py    # vendor + ports + banners -> device class + make/model guess
     creds.py       # opt-in default-credential check (lockout-safe, non-destructive)
     oui.py         # offline MAC-prefix -> vendor (+ update-oui loader)
@@ -169,11 +170,14 @@ tests/
    (unauthenticated, sends no credentials), and a network-wide UPnP/SSDP sweep — all feeding
    classification. Plus `prowl update-oui PATH` to load the full IEEE OUI database offline.
 7. ✅ **Read-only vulnerability checks** — TLS hygiene (expired/self-signed certs, obsolete
-   TLS 1.0/1.1 enabled), SMB (SMBv1 enabled, signing not required), and unauthenticated data
-   stores (Redis, Memcached, Elasticsearch, CouchDB). Each becomes a severity-ranked finding
-   in the assessment report. All connect-and-read; nothing is written or authenticated.
-8. Extra recon: DHCP/DNS intel, passive mDNS/NetBIOS/LLMNR, SMB null-session share
-   enumeration, printer/camera exposure, Wi-Fi survey; version→CVE / EOL matching.
+   TLS 1.0/1.1 enabled), SMB (SMBv1 enabled, signing not required), unauthenticated data
+   stores (Redis, Memcached, Elasticsearch, CouchDB), anonymous FTP, open DNS resolver, VNC
+   unauthenticated access, and NFS exposure. Plus **EOL/unsupported detection** — unsupported
+   Windows builds (from the SMB OS string) and end-of-life software (from banners: Apache 2.2,
+   IIS 6/7, PHP 5, old OpenSSH, …). Each becomes a severity-ranked finding. All connect-and-
+   read; nothing is written or authenticated, and "unknown version" never yields a false EOL.
+8. Extra recon: DHCP intel, passive mDNS/NetBIOS/LLMNR, SMB null-session share enumeration,
+   printer/camera exposure, Wi-Fi survey; nmap enrichment; version→CVE matching.
 
 ## Develop
 

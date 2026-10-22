@@ -14,8 +14,8 @@ import uuid
 
 import ipaddress as _ip
 
-from . import (classify, creds, discovery, fingerprint, macvendor, net, oui, ports, smb, snmp,
-               ssdp, vulnprobes)
+from . import (classify, creds, discovery, eol, fingerprint, macvendor, net, oui, ports, smb,
+               snmp, ssdp, vulnprobes)
 from .model import Host, ScanResult, Service
 
 # Refuse to enumerate anything bigger than this without an explicit override — a /16 is
@@ -181,6 +181,7 @@ class ScanJob:
                 host.vulns += await smb.audit(host.ip, timeout * 2)
         except OSError:
             pass
+        host.vulns += eol.check(host)   # banner/OS-version based, no network
 
         if self.deep_opts.get("check_default_creds") and not self._cancel.is_set():
             await self._check_creds(result)
@@ -290,7 +291,7 @@ class ScanJob:
                 {"severity": "medium", "title": "SMB signing not required",
                  "evidence": "server advertises signing not required",
                  "recommendation": "Require SMB signing to prevent relay/MITM.", "category": "smb"}]
-        if h.is_gateway and 443 in byport:  # gateway TLS hygiene
+        if h.is_gateway and 443 in byport:  # gateway TLS hygiene + open resolver
             h.vulns += [
                 {"severity": "high", "title": "Obsolete TLS enabled (TLS 1.0)",
                  "evidence": "TLS 1.0 handshake accepted on :443",
@@ -298,7 +299,14 @@ class ScanJob:
                 {"severity": "low", "title": "Self-signed TLS certificate",
                  "evidence": "issuer == subject on :443",
                  "recommendation": "Use a certificate from a trusted CA for management interfaces.",
-                 "category": "tls"}]
+                 "category": "tls"},
+                {"severity": "medium", "title": "Open DNS resolver",
+                 "evidence": "answers recursive queries for external names on :53",
+                 "recommendation": "Restrict recursion to internal clients.", "category": "dns"}]
+        if h.ip == "192.168.1.10" and 22 in byport:   # old Linux host
+            h.vulns.append({"severity": "medium", "title": "Outdated OpenSSH",
+                            "evidence": "OpenSSH 6.x is old and missing years of fixes",
+                            "recommendation": "Upgrade OpenSSH to a current release.", "category": "eol"})
 
     def _demo_cred_hits(self, hosts: list[Host]):
         """Fabricate a couple of default-cred findings so the UI/report can be seen offline."""

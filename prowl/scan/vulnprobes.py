@@ -149,14 +149,107 @@ def _datastore_blocking(ip: str, open_ports: set, timeout: float) -> list[dict]:
     return out
 
 
+# ---- anonymous FTP, open DNS resolver, VNC no-auth, NFS -------------------------------
+
+def _ftp_anon_blocking(ip: str, timeout: float, port: int = 21) -> list[dict]:
+    try:
+        with socket.create_connection((ip, port), timeout=timeout) as s:
+            s.settimeout(timeout)
+            if not s.recv(256).startswith(b"220"):
+                return []
+            s.sendall(b"USER anonymous\r\n"); s.recv(256)
+            s.sendall(b"PASS prowl@example.com\r\n")
+            if s.recv(256).startswith(b"230"):
+                s.sendall(b"QUIT\r\n")
+                return [_finding("medium", "Anonymous FTP enabled",
+                                 "anonymous login accepted on :21",
+                                 "Disable anonymous FTP or replace FTP with SFTP.", "ftp")]
+    except OSError:
+        pass
+    return []
+
+
+def _dns_query(name: str) -> bytes:
+    q = b""
+    for part in name.split("."):
+        q += bytes([len(part)]) + part.encode()
+    q += b"\x00"
+    return b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00" + q + b"\x00\x01\x00\x01"
+
+
+def _dns_resolver_blocking(ip: str, timeout: float, port: int = 53) -> list[dict]:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(timeout)
+        s.sendto(_dns_query("example.com"), (ip, port))
+        data, _ = s.recvfrom(1024)
+        s.close()
+    except OSError:
+        return []
+    if len(data) < 8:
+        return []
+    flags = int.from_bytes(data[2:4], "big")
+    ancount = int.from_bytes(data[6:8], "big")
+    ra = bool(flags & 0x0080)      # recursion available
+    rcode = flags & 0x000F
+    if ra and rcode == 0 and ancount > 0:
+        return [_finding("medium", "Open DNS resolver",
+                         "answers recursive queries for external names on :53",
+                         "Restrict recursion to internal clients; open resolvers enable DDoS "
+                         "amplification.", "dns")]
+    return []
+
+
+def _vnc_noauth_blocking(ip: str, port: int, timeout: float) -> list[dict]:
+    try:
+        with socket.create_connection((ip, port), timeout=timeout) as s:
+            s.settimeout(timeout)
+            ver = s.recv(12)
+            if not ver.startswith(b"RFB "):
+                return []
+            try:
+                minor = int(ver[8:11])
+            except ValueError:
+                minor = 8
+            if minor >= 7:
+                s.sendall(b"RFB 003.008\n")
+                n = s.recv(1)
+                if not n or n[0] == 0:
+                    return []
+                types = s.recv(n[0])
+                none_auth = 1 in types
+            else:
+                s.sendall(b"RFB 003.003\n")
+                st = s.recv(4)
+                none_auth = len(st) == 4 and int.from_bytes(st, "big") == 1
+            if none_auth:
+                return [_finding("high", "VNC allows unauthenticated access",
+                                 f"RFB 'None' security type offered on :{port}",
+                                 "Require a VNC password and restrict access to a management VLAN/VPN.",
+                                 "remote-access")]
+    except OSError:
+        pass
+    return []
+
+
 # ---- entry point ----------------------------------------------------------------------
 
 async def audit(ip: str, open_ports: set, timeout: float = 3.0) -> list[dict]:
     """Run the read-only vuln checks relevant to a host's open ports."""
     findings: list[dict] = []
-    tls_ports = [p for p in open_ports if p in TLS_PORTS]
-    for p in tls_ports:
+    for p in (p for p in open_ports if p in TLS_PORTS):
         findings += await asyncio.to_thread(_tls_audit_blocking, ip, p, timeout)
     if open_ports & {6379, 11211, 9200, 5984}:
         findings += await asyncio.to_thread(_datastore_blocking, ip, set(open_ports), timeout)
+    if 21 in open_ports:
+        findings += await asyncio.to_thread(_ftp_anon_blocking, ip, timeout)
+    if 53 in open_ports:
+        findings += await asyncio.to_thread(_dns_resolver_blocking, ip, timeout)
+    if 5900 in open_ports:
+        findings += await asyncio.to_thread(_vnc_noauth_blocking, ip, 5900, timeout)
+    if 2049 in open_ports:
+        findings.append(_finding("medium", "NFS service reachable",
+                                 "NFS (2049) open to the LAN",
+                                 "Restrict NFS by export ACL/firewall and avoid world-readable exports.",
+                                 "nfs"))
     return findings
